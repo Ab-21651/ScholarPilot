@@ -60,14 +60,14 @@ def describe_event(tool: str, args: dict[str, Any], result: dict[str, Any]) -> t
         return "saved to profile: " + ", ".join(parts), []
     if tool == "check_eligibility":
         rows = result.get("results", [])
-        ids = [r["scholarship_id"] for r in rows]
-        shown = ", ".join(f'{r["scholarship_id"]}={r["verdict"]}' for r in rows[:6])
+        ids = [r["id"] for r in rows]
+        shown = ", ".join(f'{r["id"]}={r["verdict"]}' for r in rows[:6])
         more = f" (+{len(rows) - 6} more)" if len(rows) > 6 else ""
         return f"checked eligibility: {shown}{more}", ids if len(rows) <= 6 else []
     if tool == "plan_application":
         plans = result.get("plans", [])
-        ids = [p["scholarship_id"] for p in plans]
-        deadlines = ", ".join(f'{p["scholarship_id"]} (deadline {p.get("deadline")})' for p in plans)
+        ids = [p["id"] for p in plans]
+        deadlines = ", ".join(f'{p["id"]} (deadline {p.get("deadline")})' for p in plans)
         return f"built application plan for: {deadlines}", ids
     if tool == "draft_email":
         return f'drafted email "{args.get("subject", "")}" to {args.get("to_office", "")} (waiting for approval)', [args["scholarship_id"]] if args.get("scholarship_id") else []

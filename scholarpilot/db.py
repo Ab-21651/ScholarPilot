@@ -40,10 +40,27 @@ def session_scope() -> Iterator[Session]:
         db.close()
 
 
+def _add_missing_columns() -> None:
+    """Tiny migration step: add columns that exist in the models but not yet in an older SQLite file."""
+    if not settings.database_url.startswith("sqlite"):
+        return
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table.name})")}
+            for col in table.columns:
+                if col.name not in existing:
+                    col_type = col.type.compile(dialect=engine.dialect)
+                    default = ""
+                    if col.default is not None and getattr(col.default, "is_scalar", False):
+                        default = f" DEFAULT {col.default.arg!r}"
+                    conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{default}")
+
+
 def init_db() -> None:
     from . import models  # noqa: F401  (registers tables)
     from .catalog import seed_catalog
 
     Base.metadata.create_all(engine)
+    _add_missing_columns()
     with session_scope() as db:
         seed_catalog(db)

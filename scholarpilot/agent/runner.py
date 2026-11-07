@@ -20,8 +20,9 @@ from ..config import settings
 from ..llm import LLMNotConfigured, chat, get_client
 from ..memory import memory_context, record_tool_events, refresh_stale_episodes
 from ..models import Conversation, User
+from .context import build_messages, fit_to_budget, maybe_compact
 from .prompts import SYSTEM_PROMPT, user_context
-from .tools import ToolContext, execute, openai_tools
+from .tools import ToolContext, compact_profile, execute, openai_tools
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,18 @@ class AgentReply:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     created_drafts: list[int] = field(default_factory=list)
     stopped_reason: str = "stop"
+    # Token usage for this turn, summed over every model call
+    usage: dict[str, int] = field(default_factory=lambda: {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0})
+
+    def add_usage(self, response: Any) -> None:
+        u = getattr(response, "usage", None)
+        self.usage["calls"] += 1
+        if u is None:
+            return
+        self.usage["prompt_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+        self.usage["completion_tokens"] += getattr(u, "completion_tokens", 0) or 0
+        details = getattr(u, "prompt_tokens_details", None)
+        self.usage["cached_tokens"] += (getattr(details, "cached_tokens", 0) or 0) if details else 0
 
 
 def _short(result_json: str, limit: int = 400) -> str:
@@ -89,10 +102,10 @@ def _parse_args(raw: str) -> tuple[dict[str, Any] | None, str | None]:
     return value, None
 
 
-def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tools: list[dict[str, Any]]):
+def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_out: int):
     for attempt in range(TOOL_FORMAT_RETRIES + 1):
         try:
-            return chat(client, messages, tools)
+            return chat(client, messages, tools, max_completion_tokens=max_out)
         except openai.BadRequestError as e:
             if "tool_use_failed" in str(e) and attempt < TOOL_FORMAT_RETRIES:
                 log.warning("Model produced a malformed tool call; retrying (%d)", attempt + 1)
@@ -122,17 +135,27 @@ def run_agent(
         db.rollback()
     names = {s["id"]: s["name"] for s in catalog.all_scholarships(db)}
     memory = memory_context(db, user, conversation.id, names)
-    system = SYSTEM_PROMPT + "\n\n" + user_context(user.full_name, user.target_level, user.role, memory)
+
+    def context() -> str:
+        # Rebuilt before every call so a profile saved mid-turn is visible straight away.
+        return user_context(user.full_name, user.target_level, user.role, memory, compact_profile(user))
 
     history = normalize_history(list(conversation.messages or []))
     history.append({"role": "user", "content": user_message})
+    # Working memory: fold old turns into the rolling summary when the chat gets long.
+    try:
+        maybe_compact(conversation, history)
+    except Exception:
+        log.exception("Chat compaction failed")
     tools = openai_tools()
     events: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     reply = AgentReply(text="")
 
     try:
         for _ in range(settings.max_agent_steps):
-            response = _call_with_retry(client, [{"role": "system", "content": system}, *history], tools)
+            request, max_out = fit_to_budget(build_messages(SYSTEM_PROMPT, context(), conversation, history), tools)
+            response = _call_with_retry(client, request, tools, max_out)
+            reply.add_usage(response)
             choice = response.choices[0]
             msg = choice.message
             reply.stopped_reason = choice.finish_reason or "stop"

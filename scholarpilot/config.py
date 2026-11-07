@@ -23,9 +23,14 @@ class Settings:
     llm_api_key: str = os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
     model: str = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
-    # low | medium | high (GPT-OSS reasoning depth)
-    reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "medium")
-    max_output_tokens: int = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "4096"))
+    # low | medium | high (GPT-OSS reasoning depth). Reasoning tokens count as output tokens.
+    reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "low")
+    # Upper bound per call. Groq counts this reservation against the per-minute budget.
+    max_output_tokens: int = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "2048"))
+    # Provider tokens-per-minute limit (Groq free tier: 8000). 0 = no limit.
+    tpm_limit: int = int(os.getenv("LLM_TPM_LIMIT", "8000"))
+    # How many recent user turns are sent word for word; older ones are summarized.
+    context_keep_turns: int = int(os.getenv("CONTEXT_KEEP_TURNS", "3"))
     # GPT-OSS on Groq makes one tool call per step, so allow enough steps.
     max_agent_steps: int = int(os.getenv("SCHOLARPILOT_MAX_STEPS", "15"))
 

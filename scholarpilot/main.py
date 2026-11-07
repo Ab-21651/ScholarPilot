@@ -256,7 +256,7 @@ def delete_conversation(cid: int, user: User = Depends(current_user), db: Sessio
 def send_message(cid: int, body: TextIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     c = _own_conversation(db, user, cid)
     reply = run_agent(db, user, c, body.text)
-    return {"reply": reply.text, "tool_calls": reply.tool_calls, "created_drafts": reply.created_drafts, "stopped_reason": reply.stopped_reason}
+    return {"reply": reply.text, "tool_calls": reply.tool_calls, "created_drafts": reply.created_drafts, "stopped_reason": reply.stopped_reason, "usage": reply.usage}
 
 
 # ---------- memory: application tracker and episodes ----------

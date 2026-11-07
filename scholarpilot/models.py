@@ -77,6 +77,9 @@ class Conversation(Base):
     title: Mapped[str] = mapped_column(String(255), default="New chat")
     # Full API message history, stored exactly as exchanged with the model
     messages: Mapped[list] = mapped_column(JSON, default=list)
+    # Rolling summary of messages[:summary_upto]; only messages after it are sent word for word
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_upto: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

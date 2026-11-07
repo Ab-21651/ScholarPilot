@@ -1,4 +1,10 @@
-"""Tool definitions given to the model, and the code that runs them."""
+"""Tool definitions given to the model, and the code that runs them.
+
+Descriptions and outputs are kept short on purpose: every tool definition is
+sent with every model call, and every tool output stays in the chat history.
+The student's profile and tracker are already in the context message, so
+there are no separate "read profile" / "read tracker" tools.
+"""
 
 from __future__ import annotations
 
@@ -8,153 +14,89 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from .. import catalog
-from ..memory import application_to_dict, list_applications, search_episodes, upsert_application
+from ..memory import application_to_dict, search_episodes, upsert_application
 from ..models import APPLICATION_STATUSES, EmailDraft, User
 from ..profiles import EDITABLE_FIELDS, profile_to_dict, update_profile
-from ..tools.eligibility import check_eligibility, rank_matches
-from ..tools.planner import build_timeline, merge_timelines
-from ..tools.scam import check_message
+from ..tools.eligibility import EligibilityResult, check_eligibility, rank_matches
+from ..tools.planner import build_timeline
+
+OBJ = "object"
+
+
+def _schema(props: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    s: dict[str, Any] = {"type": OBJ, "properties": props, "additionalProperties": False}
+    if required:
+        s["required"] = required
+    return s
+
+
+IDS = {"type": "array", "items": {"type": "string"}}
 
 TOOLS: list[dict[str, Any]] = [
     {
-        "name": "get_profile",
-        "description": "Read the student's saved profile: target level, grades, tests, age, work experience, preferences and remembered notes. Call this at the start of a conversation and before giving any personalised advice.",
-        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
-    },
-    {
         "name": "update_profile",
         "description": (
-            "Save facts the student tells you about themselves so you remember them next time. "
-            "Only save what the student actually stated; never guess values. "
-            f"Allowed fields: {', '.join(EDITABLE_FIELDS)}. date_of_birth is YYYY-MM-DD; grade_percent is the HSSC/A-Level percentage; "
-            "cgpa with cgpa_scale (usually 4); work_experience_months is a whole number; preferred_countries is a list. "
-            "Use 'note' for other useful facts (e.g. 'wants an English-taught engineering course')."
+            "Save facts the student stated about themselves (never guess). Fields: " + ", ".join(EDITABLE_FIELDS) + ". "
+            "date_of_birth YYYY-MM-DD; grade_percent = HSSC/A-Level %; cgpa + cgpa_scale; work_experience_months integer. "
+            "Use note for anything else worth remembering."
         ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "updates": {"type": "object", "description": "Field name to new value."},
-                "note": {"type": "string", "description": "Optional free-text fact to remember."},
-            },
-            "required": ["updates"],
-            "additionalProperties": False,
-        },
+        "input_schema": _schema({"updates": {"type": OBJ}, "note": {"type": "string"}}, ["updates"]),
     },
     {
         "name": "search_scholarships",
-        "description": "Search the verified-source catalog. All filters are optional. Defaults to the student's own level. Returns short summaries; use get_scholarship for full details.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "country": {"type": "string", "description": "e.g. Germany, United Kingdom, Hungary, Italy, Europe, Japan, Australia"},
-                "field": {"type": "string", "description": "Subject area, e.g. engineering"},
-                "funding": {"type": "string", "enum": ["full", "partial"]},
-                "query": {"type": "string", "description": "Keywords in the name or provider"},
-            },
-            "additionalProperties": False,
-        },
+        "description": "List catalog scholarships for the student's level, each with the rule engine's verdict for this student. Filters optional; most scholarships accept any subject, so don't filter by subject.",
+        "input_schema": _schema({
+            "country": {"type": "string"},
+            "funding": {"type": "string", "enum": ["full", "partial"]},
+            "query": {"type": "string", "description": "words in the name or provider"},
+        }),
     },
     {
         "name": "get_scholarship",
-        "description": "Full catalog entry for one scholarship: funding, eligibility rules, documents, steps, deadline and official links.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"scholarship_id": {"type": "string"}},
-            "required": ["scholarship_id"],
-            "additionalProperties": False,
-        },
+        "description": "Full details of one scholarship: funding, rules, documents, steps, deadline, official links.",
+        "input_schema": _schema({"scholarship_id": {"type": "string"}}, ["scholarship_id"]),
     },
     {
         "name": "check_eligibility",
-        "description": (
-            "Run the rule-based eligibility engine against the student's saved profile. Always use this before telling a student whether they qualify. "
-            "It returns a verdict (eligible / likely_eligible / not_eligible) and a pass/fail/unknown reason for each rule. "
-            "Leave scholarship_ids empty to check every scholarship for the student's level and get a ranked list."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {"scholarship_ids": {"type": "array", "items": {"type": "string"}}},
-            "additionalProperties": False,
-        },
+        "description": "Rule engine verdict per scholarship (eligible / likely_eligible / not_eligible) with the failing or unknown rules. Always use it before saying whether the student qualifies. Empty ids = check all.",
+        "input_schema": _schema({"scholarship_ids": IDS}),
     },
     {
         "name": "plan_application",
-        "description": "For the chosen scholarships, list the student's gaps (e.g. missing IELTS 6.5), the required documents and steps, and a dated timeline worked back from each deadline. Also returns one merged timeline.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"scholarship_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1}},
-            "required": ["scholarship_ids"],
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "draft_email",
-        "description": (
-            "Save an email draft to an admissions or scholarship office. This does NOT send anything: the student must open the Drafts tab and approve it. "
-            "Write it on the student's behalf, in their name, polite and short. Only use an address that appears on the official page; otherwise leave to_address empty."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "to_office": {"type": "string", "description": "e.g. 'DAAD Information Centre Islamabad'"},
-                "to_address": {"type": "string", "description": "Official email address, if known"},
-                "subject": {"type": "string"},
-                "body": {"type": "string"},
-                "scholarship_id": {"type": "string"},
-            },
-            "required": ["to_office", "subject", "body"],
-            "additionalProperties": False,
-        },
+        "description": "Gaps, documents, steps and a dated timeline back from the deadline, for chosen scholarships.",
+        "input_schema": _schema({"scholarship_ids": IDS}, ["scholarship_ids"]),
     },
     {
         "name": "update_application",
-        "description": (
-            "Add or update a scholarship in the student's application tracker. Use it when the student decides to pursue a scholarship "
-            "('interested' or 'preparing'), says they applied, got an interview, or heard back. "
-            "Optionally set the next action and its date (YYYY-MM-DD). Only record what the student told you."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "scholarship_id": {"type": "string"},
-                "status": {"type": "string", "enum": list(APPLICATION_STATUSES)},
-                "next_action": {"type": "string"},
-                "next_action_date": {"type": "string", "description": "YYYY-MM-DD"},
-                "notes": {"type": "string"},
-            },
-            "required": ["scholarship_id"],
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "list_applications",
-        "description": "List the scholarships in the student's application tracker with status, next action and status history.",
-        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "description": "Add or update a scholarship in the student's tracker when they decide to pursue it, apply, get an interview or hear back.",
+        "input_schema": _schema({
+            "scholarship_id": {"type": "string"},
+            "status": {"type": "string", "enum": list(APPLICATION_STATUSES)},
+            "next_action": {"type": "string"},
+            "next_action_date": {"type": "string", "description": "YYYY-MM-DD"},
+            "notes": {"type": "string"},
+        }, ["scholarship_id"]),
     },
     {
         "name": "recall_past_sessions",
-        "description": (
-            "Search memories of earlier chats with this student (summaries, decisions, next steps, actions taken). "
-            "The latest few are already in your context; use this to look further back, e.g. 'what did we decide about DAAD?'."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Keywords to look for"},
-                "scholarship_id": {"type": "string", "description": "Only sessions that involved this scholarship"},
-            },
-            "additionalProperties": False,
-        },
+        "description": "Search older chats with this student (summaries, decisions, actions). Recent ones are already in context.",
+        "input_schema": _schema({"query": {"type": "string"}, "scholarship_id": {"type": "string"}}),
+    },
+    {
+        "name": "draft_email",
+        "description": "Save an email draft to an office, in the student's name. Nothing is sent: the student approves it in the Drafts tab. Use only an address from the official page, else leave to_address empty.",
+        "input_schema": _schema({
+            "to_office": {"type": "string"},
+            "to_address": {"type": "string"},
+            "subject": {"type": "string"},
+            "body": {"type": "string"},
+            "scholarship_id": {"type": "string"},
+        }, ["to_office", "subject", "body"]),
     },
     {
         "name": "check_scam",
-        "description": "Check a pasted message, ad or link for scam signs (fees, guarantees, urgency, lookalike or unofficial domains, requests for documents or OTPs). Use it whenever the student shares a link or a message about a scholarship offer.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"text": {"type": "string", "description": "The full message or URL"}},
-            "required": ["text"],
-            "additionalProperties": False,
-        },
+        "description": "Check a pasted message or link for scam signs. Use whenever the student shares an offer or link.",
+        "input_schema": _schema({"text": {"type": "string"}}, ["text"]),
     },
 ]
 
@@ -184,11 +126,67 @@ def _ids(args: dict[str, Any], key: str = "scholarship_ids") -> list[str]:
     return value
 
 
+def _lookup(db: Session, sid: str) -> dict[str, Any]:
+    s = catalog.get_scholarship(db, sid)
+    if not s:
+        raise ValueError(f"No scholarship with id '{sid}'. Use search_scholarships to find ids.")
+    return s
+
+
+# ---------- compact views (what the model reads) ----------
+
+def compact_profile(user: User) -> dict[str, Any]:
+    """Profile without empty fields, for the context message."""
+    p = profile_to_dict(user)
+    if p.get("cgpa") is None:
+        p.pop("cgpa_scale", None)
+    return {k: v for k, v in p.items() if v not in (None, "", [], {}) and k not in {"full_name", "role", "target_level"}}
+
+
+def compact_eligibility(r: EligibilityResult, detailed: bool) -> dict[str, Any]:
+    out: dict[str, Any] = {"id": r.scholarship_id, "name": r.scholarship_name, "verdict": r.verdict}
+    issues = [c.detail for c in r.criteria if c.status != "pass"]
+    if issues:
+        out["issues"] = issues
+    if detailed:
+        out["passed"] = [c.detail for c in r.criteria if c.status == "pass"]
+        if r.manual_checks:
+            out["also_check"] = r.manual_checks[:5]
+    return out
+
+
+def compact_scholarship(s: dict[str, Any], level: str) -> dict[str, Any]:
+    track = s["tracks"].get(level)
+    out = {k: s[k] for k in ("id", "name", "country", "provider", "funding", "funding_details", "official_url", "apply_url") if k in s}
+    out["verification_status"] = s.get("verification_status")
+    if track is None:
+        out["note"] = f"No {level}'s track; offered for: {', '.join(s['tracks'])}"
+    else:
+        out["eligibility"] = track["eligibility"]
+        out["deadline"] = track.get("deadline")
+        out["documents"] = track.get("documents", [])
+        out["steps"] = track.get("steps", [])
+    return out
+
+
+def compact_plan(t: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": t["scholarship_id"],
+        "name": t["scholarship_name"],
+        "verdict": t["verdict"],
+        "deadline": t["deadline"],
+        "gaps": [g["action"] for g in t["gaps"]],
+        "documents": t["documents"],
+        "milestones": [f'{m["date"]} {m["title"]}' + (" (OVERDUE)" if m["status"] == "overdue" else "") for m in t["milestones"]],
+        "warnings": t["warnings"],
+        "apply_url": t["apply_url"],
+    }
+
+
+# ---------- dispatcher ----------
+
 def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any]:
     db, user = ctx.db, ctx.user
-
-    if name == "get_profile":
-        return profile_to_dict(user)
 
     if name == "update_profile":
         updates = args.get("updates")
@@ -196,45 +194,49 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
             raise ValueError("'updates' must be an object")
         changed, errors = update_profile(db, user, updates, args.get("note"))
         db.commit()
-        return {"saved": changed, "errors": errors}
+        return {"saved": changed, **({"errors": errors} if errors else {})}
 
     if name == "search_scholarships":
         results = catalog.search_scholarships(
-            db, level=ctx.level, country=args.get("country"), field=args.get("field"), funding=args.get("funding"), query=args.get("query")
+            db, level=ctx.level, country=args.get("country"), funding=args.get("funding"), query=args.get("query")
         )
-        return {"level": ctx.level, "count": len(results), "results": [catalog.summarize(s, ctx.level) for s in results]}
+        profile = profile_to_dict(user)
+        rows = []
+        for s in results:
+            r = check_eligibility(s, profile, ctx.level)
+            row = {
+                "id": s["id"], "name": s["name"], "country": s["country"], "funding": s["funding"],
+                "deadline": catalog.summarize(s, ctx.level).get("typical_deadline"), "verdict": r.verdict,
+                "url": s["official_url"],
+            }
+            issues = [c.detail for c in r.criteria if c.status != "pass"]
+            if issues:
+                row["issues"] = issues[:2]
+            rows.append(row)
+        order = {"eligible": 0, "likely_eligible": 1, "not_eligible": 2}
+        rows.sort(key=lambda x: order[x["verdict"]])
+        return {"count": len(rows), "results": rows}
 
     if name == "get_scholarship":
-        sid = _require_str(args, "scholarship_id")
-        s = catalog.get_scholarship(db, sid)
-        if not s:
-            raise ValueError(f"No scholarship with id '{sid}'. Use search_scholarships to find ids.")
-        return s
+        return compact_scholarship(_lookup(db, _require_str(args, "scholarship_id")), ctx.level)
 
     if name == "check_eligibility":
         profile = profile_to_dict(user)
         ids = _ids(args)
-        if ids:
-            items = []
-            for sid in ids:
-                s = catalog.get_scholarship(db, sid)
-                if not s:
-                    raise ValueError(f"No scholarship with id '{sid}'")
-                items.append(s)
-        else:
-            items = catalog.search_scholarships(db, level=ctx.level)
+        items = [_lookup(db, sid) for sid in ids] if ids else catalog.search_scholarships(db, level=ctx.level)
         results = rank_matches([check_eligibility(s, profile, ctx.level) for s in items])
-        return {"level": ctx.level, "results": [r.to_dict() for r in results]}
+        detailed = len(results) <= 2
+        return {"results": [compact_eligibility(r, detailed) for r in results]}
 
     if name == "plan_application":
         profile = profile_to_dict(user)
-        timelines = []
+        plans = []
         for sid in _ids(args):
-            s = catalog.get_scholarship(db, sid)
-            if not s:
-                raise ValueError(f"No scholarship with id '{sid}'")
-            timelines.append(build_timeline(s, check_eligibility(s, profile, ctx.level), profile=profile))
-        return {"plans": timelines, "merged_timeline": merge_timelines(timelines)}
+            s = _lookup(db, sid)
+            plans.append(compact_plan(build_timeline(s, check_eligibility(s, profile, ctx.level), profile=profile)))
+        if not plans:
+            raise ValueError("Give at least one scholarship id")
+        return {"plans": plans}
 
     if name == "draft_email":
         draft = EmailDraft(
@@ -249,40 +251,43 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
         db.add(draft)
         db.commit()
         ctx.created_drafts.append(draft.id)
-        return {"draft_id": draft.id, "status": "pending", "message": "Draft saved. The student must review and approve it in the Drafts tab before anything is sent."}
+        return {"draft_id": draft.id, "status": "pending", "message": "Saved. The student must approve it in the Drafts tab; nothing was sent."}
 
     if name == "check_scam":
+        from ..tools.scam import check_message
+
         report = check_message(_require_str(args, "text"), catalog.official_domains(db))
-        return report.to_dict()
+        return {
+            "risk_level": report.risk_level,
+            "score": report.score,
+            "signals": [s.explanation for s in report.signals],
+            "official_links": report.trusted_links,
+            "advice": report.advice,
+        }
 
     if name == "update_application":
         sid = _require_str(args, "scholarship_id")
-        s = catalog.get_scholarship(db, sid)
-        if not s:
-            raise ValueError(f"No scholarship with id '{sid}'. Use search_scholarships to find ids.")
+        s = _lookup(db, sid)
         app = upsert_application(
             db, user, sid, status=args.get("status"), notes=args.get("notes"),
             next_action=args.get("next_action"), next_action_date=args.get("next_action_date"),
         )
         db.commit()
-        return {"application": application_to_dict(app, s["name"])}
-
-    if name == "list_applications":
-        names = {s["id"]: s["name"] for s in catalog.all_scholarships(db)}
-        return {"applications": [application_to_dict(a, names.get(a.scholarship_id)) for a in list_applications(db, user)]}
+        a = application_to_dict(app, s["name"])
+        return {"application": {k: a[k] for k in ("scholarship_id", "status", "next_action", "next_action_date") if a.get(k)}}
 
     if name == "recall_past_sessions":
         found = search_episodes(db, user, query=args.get("query"), scholarship_id=args.get("scholarship_id"))
-        return {"sessions": found, "count": len(found)}
+        return {"count": len(found), "sessions": [{k: v for k, v in e.items() if v and k != "conversation_id"} for e in found]}
 
     raise ValueError(f"Unknown tool '{name}'")
 
 
 def execute(ctx: ToolContext, name: str, args: dict[str, Any]) -> tuple[str, bool, dict[str, Any]]:
-    """Run a tool and return (json result, is_error, result dict)."""
+    """Run a tool and return (compact json result, is_error, result dict)."""
     try:
         result = run_tool(ctx, name, args or {})
-        return json.dumps(result, default=str), False, result
+        return json.dumps(result, default=str, ensure_ascii=False, separators=(",", ":")), False, result
     except Exception as e:  # tool errors go back to the model so it can recover
         ctx.db.rollback()
         result = {"error": str(e)}

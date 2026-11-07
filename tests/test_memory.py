@@ -17,7 +17,7 @@ def signup(c, email, level="master"):
 
 
 def test_describe_event_lines():
-    line, ids = memory.describe_event("check_eligibility", {}, {"results": [{"scholarship_id": "chevening", "verdict": "not_eligible"}]})
+    line, ids = memory.describe_event("check_eligibility", {}, {"results": [{"id": "chevening", "verdict": "not_eligible"}]})
     assert line == "checked eligibility: chevening=not_eligible" and ids == ["chevening"]
     line, _ = memory.describe_event("update_profile", {}, {"saved": {"ielts": 6.5}, "errors": []})
     assert line == "saved to profile: ielts=6.5"
@@ -75,7 +75,7 @@ def test_second_chat_remembers_first(monkeypatch):
         assert "Welcome back" in r["reply"]
 
         # the first chat was summarized and loaded into the second chat's context
-        context = second.chat.completions.calls[0]["messages"][0]["content"]
+        context = second.chat.completions.calls[0]["messages"][1]["content"]
         assert "decided to apply" in context
         assert "Get transcripts attested by HEC" in context
         assert "stipendium-hungaricum" in context and "preparing" in context
@@ -91,7 +91,7 @@ def test_second_chat_remembers_first(monkeypatch):
         ])
         monkeypatch.setattr(runner, "get_client", lambda: third)
         r = c.post(f"/api/conversations/{c2}/messages", headers=h, json={"text": "What did we decide before?"}).json()
-        assert '"count": 1' in r["tool_calls"][0]["result"]
+        assert '"count":1' in r["tool_calls"][0]["result"]
 
         # deleting a chat forgets its episode
         c.delete(f"/api/conversations/{c1}", headers=h)
