@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
 from sqlalchemy.orm import Session
 
+from .. import catalog
 from ..config import settings
+from ..memory import memory_context, record_tool_events, refresh_stale_episodes
 from ..models import Conversation, User
 from .prompts import SYSTEM_PROMPT, user_context
 from .tools import TOOLS, ToolContext, execute
@@ -73,10 +76,22 @@ def run_agent(
         log.exception("Could not create the Anthropic client")
         return AgentReply(text="The assistant isn't configured yet. Add ANTHROPIC_API_KEY to the .env file and restart the server.", stopped_reason="error")
     ctx = ToolContext(db, user)
+
+    # Episodic memory: summarize other chats that changed since last time, then
+    # load recent episodes and the application tracker into the context.
+    try:
+        refresh_stale_episodes(db, user, exclude_conversation_id=conversation.id)
+    except Exception:
+        log.exception("Episode summarization failed")
+        db.rollback()
+    names = {s["id"]: s["name"] for s in catalog.all_scholarships(db)}
+    memory = memory_context(db, user, conversation.id, names)
+
     system = [
         {"type": "text", "text": SYSTEM_PROMPT},
-        {"type": "text", "text": user_context(user.full_name, user.target_level, user.role)},
+        {"type": "text", "text": user_context(user.full_name, user.target_level, user.role, memory)},
     ]
+    events: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     messages: list[dict[str, Any]] = list(conversation.messages or [])
     messages.append({"role": "user", "content": user_message})
     reply = AgentReply(text="")
@@ -107,7 +122,8 @@ def run_agent(
 
             results = []
             for tu in tool_uses:
-                output, is_error = execute(ctx, tu["name"], tu.get("input") or {})
+                output, is_error, result = execute(ctx, tu["name"], tu.get("input") or {})
+                events.append((tu["name"], tu.get("input") or {}, result))
                 reply.tool_calls.append({"tool": tu["name"], "input": tu.get("input"), "is_error": is_error, "result": _short(output)})
                 results.append({"type": "tool_result", "tool_use_id": tu["id"], "content": output, "is_error": is_error})
             messages.append({"role": "user", "content": results})
@@ -152,6 +168,8 @@ def run_agent(
     conversation.messages = messages
     if conversation.title == "New chat":
         conversation.title = user_message[:60]
+    conversation.updated_at = datetime.now(timezone.utc)
+    record_tool_events(db, conversation, events)
     reply.created_drafts = ctx.created_drafts
     db.commit()
     return reply

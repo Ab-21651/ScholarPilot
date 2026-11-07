@@ -164,6 +164,16 @@ details ul { font-size: 13px; margin: 6px 0 0; padding-left: 18px; color: var(--
 .status { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
 .status.sent, .status.approved { background: var(--ok-soft); color: var(--ok); }
 
+/* Tracker and memory */
+.tracker-grid { display: grid; gap: 8px; grid-template-columns: 1fr 2fr 1fr; }
+.status.interested, .status.preparing { background: var(--accent-soft); color: var(--accent); }
+.status.interview { background: var(--warn-soft); color: var(--warn); }
+.status.accepted { background: var(--ok-soft); color: var(--ok); }
+.status.rejected, .status.withdrawn { background: var(--bad-soft); color: var(--bad); }
+.memory-head { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
+.episode { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-top: 8px; }
+.episode p { margin: 4px 0; }
+
 /* Scam */
 .risk { display: inline-block; font-weight: 700; padding: 4px 12px; border-radius: 99px; margin: 16px 0 8px; }
 .signal { border-left: 3px solid var(--warn); padding: 4px 10px; margin: 8px 0; background: var(--surface); border-radius: 0 8px 8px 0; }
@@ -192,5 +202,5 @@ details ul { font-size: 13px; margin: 6px 0 0; padding-left: 18px; color: var(--
   .chat { height: calc(100vh - 210px); }
   .msg { max-width: 92%; }
   .who #who-name { display: none; }
-  .cards, .plan-grid { grid-template-columns: 1fr; }
+  .cards, .plan-grid, .tracker-grid { grid-template-columns: 1fr; }
 }

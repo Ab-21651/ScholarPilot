@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -77,6 +77,52 @@ class Conversation(Base):
     title: Mapped[str] = mapped_column(String(255), default="New chat")
     # Full API message history, stored exactly as exchanged with the model
     messages: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Episode(Base):
+    """Episodic memory: what happened in one conversation.
+
+    `events` are recorded automatically from tool calls (no LLM needed).
+    `summary`, `decisions` and `next_steps` are written by the LLM once the
+    conversation is finished, so later chats can recall it.
+    """
+
+    __tablename__ = "episodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), unique=True)
+    events: Mapped[list] = mapped_column(JSON, default=list)
+    scholarship_ids: Mapped[list] = mapped_column(JSON, default=list)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decisions: Mapped[list] = mapped_column(JSON, default=list)
+    next_steps: Mapped[list] = mapped_column(JSON, default=list)
+    # When the summary was last written; older than the conversation means it is stale.
+    summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+APPLICATION_STATUSES = ("interested", "preparing", "applied", "interview", "accepted", "rejected", "withdrawn")
+
+
+class Application(Base):
+    """Application tracker: one row per scholarship the student is pursuing."""
+
+    __tablename__ = "applications"
+    __table_args__ = (UniqueConstraint("user_id", "scholarship_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    scholarship_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="interested")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_action: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    next_action_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
+    # [{"status": "applied", "date": "2026-11-07"}, ...]
+    history: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

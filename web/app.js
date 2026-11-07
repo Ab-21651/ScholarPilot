@@ -104,7 +104,7 @@ $("#signup-form").addEventListener("submit", e => { e.preventDefault(); handleAu
 $("#logout").addEventListener("click", logout);
 
 // ---------- navigation ----------
-const loaders = { chat: loadConversations, matches: loadMatches, drafts: loadDrafts, profile: loadProfile, review: loadReviews };
+const loaders = { chat: loadConversations, matches: loadMatches, tracker: loadTracker, drafts: loadDrafts, profile: loadProfile, review: loadReviews };
 
 function showView(name) {
   $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === name));
@@ -227,7 +227,9 @@ const ICON = { pass: "✓", fail: "✗", unknown: "?" };
 async function loadMatches() {
   const list = $("#matches-list");
   list.innerHTML = `<p class="muted">Checking...</p>`;
-  state.matches = await api("/api/matches");
+  const [matches, apps] = await Promise.all([api("/api/matches"), api("/api/applications")]);
+  state.matches = matches;
+  const tracked = new Set(apps.map(a => a.scholarship_id));
   list.innerHTML = state.matches.map(r => `
     <article class="card">
       <div class="card-head">
@@ -238,7 +240,12 @@ async function loadMatches() {
       ${r.catalog_status !== "verified" ? `<div class="unverified">Details not yet re-verified by a reviewer. Confirm on the official page.</div>` : ""}
       <ul class="criteria">${r.criteria.map(c => `<li><span class="${c.status}">${ICON[c.status]}</span><span>${esc(c.detail)}</span></li>`).join("")}</ul>
       ${r.manual_checks.length ? `<details><summary>Also check yourself (${r.manual_checks.length})</summary><ul>${r.manual_checks.map(m => `<li>${esc(m)}</li>`).join("")}</ul></details>` : ""}
+      <div><button class="small track" data-id="${esc(r.scholarship_id)}" ${tracked.has(r.scholarship_id) ? "disabled" : ""}>${tracked.has(r.scholarship_id) ? "In tracker" : "+ Track"}</button></div>
     </article>`).join("") || `<p class="muted">No scholarships in the catalog for your level yet.</p>`;
+  $$(".track", list).forEach(b => b.addEventListener("click", async () => {
+    await api(`/api/applications/${b.dataset.id}`, { method: "PUT", body: { status: "interested" } });
+    b.textContent = "In tracker"; b.disabled = true; toast("Added to your tracker.");
+  }));
   $$("input[type=checkbox]", list).forEach(cb => cb.addEventListener("change", () => {
     cb.checked ? state.selected.add(cb.dataset.id) : state.selected.delete(cb.dataset.id);
     $("#plan-selected").disabled = state.selected.size === 0;
@@ -269,6 +276,45 @@ async function buildPlan() {
       </article>`).join("");
     out.innerHTML = `<h3>Timeline</h3><ul class="timeline">${timeline}</ul><div class="plan-grid">${cards}</div>`;
   } catch (e) { out.innerHTML = `<p class="error">${esc(e.message)}</p>`; }
+}
+
+// ---------- application tracker ----------
+const STATUSES = ["interested", "preparing", "applied", "interview", "accepted", "rejected", "withdrawn"];
+
+async function loadTracker() {
+  const apps = await api("/api/applications");
+  const list = $("#tracker-list");
+  if (!apps.length) {
+    list.innerHTML = `<p class="muted">Nothing tracked yet. Use "+ Track" on the Matches tab, or tell the assistant which scholarships you're going for.</p>`;
+    return;
+  }
+  list.innerHTML = apps.map(a => `
+    <article class="draft" data-id="${esc(a.scholarship_id)}">
+      <div class="card-head"><strong>${esc(a.scholarship_name || a.scholarship_id)}</strong>
+        <span class="status ${esc(a.status)}">${esc(a.status)}</span></div>
+      <div class="tracker-grid">
+        <label>Status <select name="status">${STATUSES.map(s => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+        <label>Next action <input name="next_action" value="${esc(a.next_action || "")}" placeholder="e.g. Book IELTS"></label>
+        <label>By <input name="next_action_date" type="date" value="${esc(a.next_action_date || "")}"></label>
+      </div>
+      <label>Notes <textarea name="notes" rows="2">${esc(a.notes || "")}</textarea></label>
+      <div class="meta">History: ${a.history.map(h => `${esc(h.status)} (${esc(h.date)})`).join(" → ")}
+        ${a.official_url ? ` · <a href="${esc(a.official_url)}" target="_blank" rel="noopener noreferrer">Official page</a>` : ""}</div>
+      <div class="actions"><button class="primary save">Save</button><button class="danger remove">Remove</button></div>
+    </article>`).join("");
+  $$("article", list).forEach(el => {
+    const id = el.dataset.id;
+    $(".save", el).addEventListener("click", async () => {
+      const body = { status: $("[name=status]", el).value, next_action: $("[name=next_action]", el).value,
+        next_action_date: $("[name=next_action_date]", el).value, notes: $("[name=notes]", el).value };
+      try { await api(`/api/applications/${id}`, { method: "PUT", body }); toast("Saved."); loadTracker(); }
+      catch (e) { toast(e.message); }
+    });
+    $(".remove", el).addEventListener("click", async () => {
+      if (!confirm("Remove this scholarship from your tracker?")) return;
+      await api(`/api/applications/${id}`, { method: "DELETE" }); loadTracker();
+    });
+  });
 }
 
 // ---------- drafts ----------
@@ -376,7 +422,24 @@ async function loadProfile() {
   }).join("") + `<div class="full"><button class="primary" type="submit">Save profile</button></div>`;
   $("#profile-notes").innerHTML = p.notes && p.notes.length
     ? `<h3>What the assistant remembers</h3><ul>${p.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "";
+  loadEpisodes();
 }
+
+async function loadEpisodes() {
+  const { episodes } = await api("/api/memory");
+  $("#episodes-list").innerHTML = episodes.length ? episodes.map(e => `
+    <article class="episode">
+      <div class="meta">${esc(e.date)}</div>
+      <p>${esc(e.summary)}</p>
+      ${e.decisions.length ? `<div class="meta"><strong>Decided:</strong> ${e.decisions.map(esc).join("; ")}</div>` : ""}
+      ${e.next_steps.length ? `<div class="meta"><strong>To do:</strong> ${e.next_steps.map(esc).join("; ")}</div>` : ""}
+    </article>`).join("") : `<p class="muted">No past sessions yet.</p>`;
+}
+
+$("#refresh-memory").addEventListener("click", async () => {
+  try { const r = await api("/api/memory/refresh", { method: "POST" }); toast(`Updated ${r.summarized} summaries.`); loadEpisodes(); }
+  catch (e) { toast(e.message); }
+});
 
 $("#profile-form").addEventListener("submit", async e => {
   e.preventDefault();

@@ -55,6 +55,7 @@
         <button data-view="chat" class="active">Chat</button>
         <button data-view="matches">Matches</button>
         <button data-view="plan">Plan</button>
+        <button data-view="tracker">Tracker</button>
         <button data-view="drafts">Drafts <span id="draft-count" class="badge hidden"></span></button>
         <button data-view="scam">Scam check</button>
         <button data-view="profile">Profile</button>
@@ -98,6 +99,13 @@
         <div id="plan-output"></div>
       </section>
 
+      <!-- Tracker -->
+      <section data-panel="tracker" class="panel hidden">
+        <div class="panel-head"><h2>Application tracker</h2>
+          <p class="muted">Scholarships you're pursuing. The assistant also updates this when you tell it you applied or heard back.</p></div>
+        <div id="tracker-list"></div>
+      </section>
+
       <!-- Drafts -->
       <section data-panel="drafts" class="panel hidden">
         <div class="panel-head"><h2>Email drafts</h2>
@@ -122,6 +130,11 @@
           <p class="muted">The assistant remembers this. You can also just tell it in chat.</p></div>
         <form id="profile-form" class="profile-grid"></form>
         <div id="profile-notes"></div>
+        <div class="memory-head">
+          <h3>Past sessions</h3>
+          <button id="refresh-memory" class="small">Update summaries</button>
+        </div>
+        <div id="episodes-list"></div>
       </section>
 
       <!-- Review -->

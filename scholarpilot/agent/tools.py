@@ -8,7 +8,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from .. import catalog
-from ..models import EmailDraft, User
+from ..memory import application_to_dict, list_applications, search_episodes, upsert_application
+from ..models import APPLICATION_STATUSES, EmailDraft, User
 from ..profiles import EDITABLE_FIELDS, profile_to_dict, update_profile
 from ..tools.eligibility import check_eligibility, rank_matches
 from ..tools.planner import build_timeline, merge_timelines
@@ -102,6 +103,46 @@ TOOLS: list[dict[str, Any]] = [
                 "scholarship_id": {"type": "string"},
             },
             "required": ["to_office", "subject", "body"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_application",
+        "description": (
+            "Add or update a scholarship in the student's application tracker. Use it when the student decides to pursue a scholarship "
+            "('interested' or 'preparing'), says they applied, got an interview, or heard back. "
+            "Optionally set the next action and its date (YYYY-MM-DD). Only record what the student told you."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "scholarship_id": {"type": "string"},
+                "status": {"type": "string", "enum": list(APPLICATION_STATUSES)},
+                "next_action": {"type": "string"},
+                "next_action_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "notes": {"type": "string"},
+            },
+            "required": ["scholarship_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_applications",
+        "description": "List the scholarships in the student's application tracker with status, next action and status history.",
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "recall_past_sessions",
+        "description": (
+            "Search memories of earlier chats with this student (summaries, decisions, next steps, actions taken). "
+            "The latest few are already in your context; use this to look further back, e.g. 'what did we decide about DAAD?'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Keywords to look for"},
+                "scholarship_id": {"type": "string", "description": "Only sessions that involved this scholarship"},
+            },
             "additionalProperties": False,
         },
     },
@@ -214,13 +255,35 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
         report = check_message(_require_str(args, "text"), catalog.official_domains(db))
         return report.to_dict()
 
+    if name == "update_application":
+        sid = _require_str(args, "scholarship_id")
+        s = catalog.get_scholarship(db, sid)
+        if not s:
+            raise ValueError(f"No scholarship with id '{sid}'. Use search_scholarships to find ids.")
+        app = upsert_application(
+            db, user, sid, status=args.get("status"), notes=args.get("notes"),
+            next_action=args.get("next_action"), next_action_date=args.get("next_action_date"),
+        )
+        db.commit()
+        return {"application": application_to_dict(app, s["name"])}
+
+    if name == "list_applications":
+        names = {s["id"]: s["name"] for s in catalog.all_scholarships(db)}
+        return {"applications": [application_to_dict(a, names.get(a.scholarship_id)) for a in list_applications(db, user)]}
+
+    if name == "recall_past_sessions":
+        found = search_episodes(db, user, query=args.get("query"), scholarship_id=args.get("scholarship_id"))
+        return {"sessions": found, "count": len(found)}
+
     raise ValueError(f"Unknown tool '{name}'")
 
 
-def execute(ctx: ToolContext, name: str, args: dict[str, Any]) -> tuple[str, bool]:
-    """Run a tool and return (json result, is_error)."""
+def execute(ctx: ToolContext, name: str, args: dict[str, Any]) -> tuple[str, bool, dict[str, Any]]:
+    """Run a tool and return (json result, is_error, result dict)."""
     try:
-        return json.dumps(run_tool(ctx, name, args or {}), default=str), False
+        result = run_tool(ctx, name, args or {})
+        return json.dumps(result, default=str), False, result
     except Exception as e:  # tool errors go back to the model so it can recover
         ctx.db.rollback()
-        return json.dumps({"error": str(e)}), True
+        result = {"error": str(e)}
+        return json.dumps(result), True, result

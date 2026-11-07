@@ -23,7 +23,15 @@ from .auth import admin_user, create_token, current_user, hash_password, verify_
 from .config import settings
 from .db import get_db, init_db, session_scope
 from .emailer import mailto_link, send_draft, smtp_configured
-from .models import ChangeReview, Conversation, EmailDraft, Scholarship, User
+from .memory import (
+    application_to_dict,
+    delete_application,
+    list_applications,
+    recent_episodes,
+    refresh_stale_episodes,
+    upsert_application,
+)
+from .models import ChangeReview, Conversation, EmailDraft, Episode, Scholarship, User
 from .monitor import approve_review, run_monitor
 from .profiles import get_or_create_profile, profile_to_dict, update_profile
 from .tools.eligibility import check_eligibility, rank_matches
@@ -87,6 +95,13 @@ class DraftEditIn(BaseModel):
     to_address: str | None = None
     subject: str | None = None
     body: str | None = None
+
+
+class ApplicationIn(BaseModel):
+    status: str | None = None
+    notes: str | None = None
+    next_action: str | None = None
+    next_action_date: str | None = None
 
 
 class ReviewDecisionIn(BaseModel):
@@ -227,7 +242,12 @@ def get_conversation(cid: int, user: User = Depends(current_user), db: Session =
 
 @app.delete("/api/conversations/{cid}")
 def delete_conversation(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    db.delete(_own_conversation(db, user, cid))
+    c = _own_conversation(db, user, cid)
+    # Deleting a chat also forgets its episode.
+    episode = db.scalar(select(Episode).where(Episode.conversation_id == c.id))
+    if episode:
+        db.delete(episode)
+    db.delete(c)
     db.commit()
     return {"ok": True}
 
@@ -237,6 +257,54 @@ def send_message(cid: int, body: TextIn, user: User = Depends(current_user), db:
     c = _own_conversation(db, user, cid)
     reply = run_agent(db, user, c, body.text)
     return {"reply": reply.text, "tool_calls": reply.tool_calls, "created_drafts": reply.created_drafts, "stopped_reason": reply.stopped_reason}
+
+
+# ---------- memory: application tracker and episodes ----------
+
+@app.get("/api/applications")
+def get_applications(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    names = {s["id"]: s for s in catalog.all_scholarships(db)}
+    out = []
+    for a in list_applications(db, user):
+        s = names.get(a.scholarship_id, {})
+        d = application_to_dict(a, s.get("name"))
+        d["official_url"] = s.get("official_url")
+        out.append(d)
+    return out
+
+
+@app.put("/api/applications/{sid}")
+def put_application(sid: str, body: ApplicationIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    s = catalog.get_scholarship(db, sid)
+    if not s:
+        raise HTTPException(404, "Scholarship not found")
+    try:
+        a = upsert_application(db, user, sid, status=body.status, notes=body.notes, next_action=body.next_action, next_action_date=body.next_action_date)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(422, str(e))
+    db.commit()
+    return application_to_dict(a, s["name"])
+
+
+@app.delete("/api/applications/{sid}")
+def remove_application(sid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if not delete_application(db, user, sid):
+        raise HTTPException(404, "Not in your tracker")
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/memory")
+def get_memory(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Everything the assistant remembers: profile notes and past-chat episodes."""
+    return {"notes": list(user.profile.notes or []) if user.profile else [], "episodes": recent_episodes(db, user, limit=20)}
+
+
+@app.post("/api/memory/refresh")
+def refresh_memory(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Write summaries for chats that changed since they were last summarized."""
+    return {"summarized": refresh_stale_episodes(db, user)}
 
 
 # ---------- email drafts (human approval required) ----------

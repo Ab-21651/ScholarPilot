@@ -32,6 +32,7 @@ Design choices:
 - **The LLM never decides eligibility.** A deterministic rules engine ([scholarpilot/tools/eligibility.py](scholarpilot/tools/eligibility.py)) marks every rule pass, fail or unknown, and the agent explains the result. This makes verdicts testable and stops the model from inventing criteria.
 - **Human in the loop twice.** Emails are only drafted; the student approves them in the Drafts tab. Catalog changes found by the monitor are only applied after a reviewer approves them.
 - **Grounded answers.** All scholarship facts come from the catalog, which links to official pages only. Entries stay `needs_review` until a reviewer verifies them.
+- **Four kinds of memory.** Working (the chat), semantic (profile and catalog), episodic (summaries of past chats plus the application tracker), and procedural (prompt and tools). See [docs/memory.md](docs/memory.md).
 
 ## Project layout
 
@@ -40,8 +41,10 @@ scholarpilot/
   agent/          agent loop, tool definitions, system prompt
   tools/          eligibility engine, gap/timeline planner, scam checker
   catalog.py      catalog loading and search
+  memory.py       episodic memory (past-chat summaries) and application tracker
   monitor.py      daily official-page monitor and review queue
-  profiles.py     student profile (long-term memory)
+  profiles.py     student profile (long-term facts about the student)
+  llm.py          one-off JSON calls to the model (e.g. chat summaries)
   main.py         FastAPI app (REST API and frontend)
   models.py       database tables
 data/
