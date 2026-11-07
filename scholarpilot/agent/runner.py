@@ -22,7 +22,8 @@ from ..memory import memory_context, record_tool_events, refresh_stale_episodes
 from ..models import Conversation, User
 from .context import build_messages, fit_to_budget, maybe_compact
 from .prompts import SYSTEM_PROMPT, user_context
-from .tools import ToolContext, compact_profile, execute, openai_tools
+from .toolkit import ALL_GROUPS, TOOL_GROUP, open_groups, route, tools_for
+from .tools import ToolContext, compact_profile, execute
 
 log = logging.getLogger(__name__)
 
@@ -102,13 +103,17 @@ def _parse_args(raw: str) -> tuple[dict[str, Any] | None, str | None]:
     return value, None
 
 
-def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_out: int):
+def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_out: int, all_tools: list[dict[str, Any]]):
     for attempt in range(TOOL_FORMAT_RETRIES + 1):
         try:
             return chat(client, messages, tools, max_completion_tokens=max_out)
         except openai.BadRequestError as e:
             if "tool_use_failed" in str(e) and attempt < TOOL_FORMAT_RETRIES:
-                log.warning("Model produced a malformed tool call; retrying (%d)", attempt + 1)
+                # Usually the model called a tool from the map that isn't loaded yet:
+                # on the last retry, send every tool.
+                log.warning("Model produced a malformed or unloaded tool call; retrying (%d)", attempt + 1)
+                if attempt == TOOL_FORMAT_RETRIES - 1:
+                    tools = all_tools
                 continue
             raise
 
@@ -147,14 +152,17 @@ def run_agent(
         maybe_compact(conversation, history)
     except Exception:
         log.exception("Chat compaction failed")
-    tools = openai_tools()
+    # Tool hierarchy: start with the groups this message needs; the model can open more.
+    loaded = route(user_message)
+    all_tools = tools_for(set(ALL_GROUPS))
     events: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     reply = AgentReply(text="")
 
     try:
         for _ in range(settings.max_agent_steps):
+            tools = tools_for(loaded)
             request, max_out = fit_to_budget(build_messages(SYSTEM_PROMPT, context(), conversation, history), tools)
-            response = _call_with_retry(client, request, tools, max_out)
+            response = _call_with_retry(client, request, tools, max_out, all_tools)
             reply.add_usage(response)
             choice = response.choices[0]
             msg = choice.message
@@ -180,7 +188,12 @@ def run_agent(
                 args, parse_error = _parse_args(tc.function.arguments)
                 if parse_error:
                     output, is_error, result = json.dumps({"error": parse_error}), True, {"error": parse_error}
+                elif name == "open_tools":
+                    result = open_groups(args, loaded)
+                    output, is_error = json.dumps(result, separators=(",", ":")), False
                 else:
+                    if name in TOOL_GROUP:
+                        loaded.add(TOOL_GROUP[name])  # keep the group loaded for the rest of the turn
                     output, is_error, result = execute(ctx, name, args)
                 events.append((name, args or {}, result))
                 reply.tool_calls.append({"tool": name, "input": args, "is_error": is_error, "result": _short(output)})

@@ -32,6 +32,8 @@ Design choices:
 - **The LLM never decides eligibility.** A deterministic rules engine ([scholarpilot/tools/eligibility.py](scholarpilot/tools/eligibility.py)) marks every rule pass, fail or unknown, and the agent explains the result. This makes verdicts testable and stops the model from inventing criteria.
 - **Human in the loop twice.** Emails are only drafted; the student approves them in the Drafts tab. Catalog changes found by the monitor are only applied after a reviewer approves them.
 - **Grounded answers.** All scholarship facts come from the catalog, which links to official pages only. Entries stay `needs_review` until a reviewer verifies them.
+- **Tool hierarchy.** Tools are grouped (student, scholarships, planning, outreach, safety). A router loads only the groups a message needs, and the model can open others with `open_tools`. See [docs/tools.md](docs/tools.md).
+- **Fits a free tier.** A rolling chat summary, compact tool outputs and a per-minute token budget keep requests small. See [docs/token-efficiency.md](docs/token-efficiency.md).
 - **Four kinds of memory.** Working (the chat), semantic (profile and catalog), episodic (summaries of past chats plus the application tracker), and procedural (prompt and tools). See [docs/memory.md](docs/memory.md).
 
 ## Project layout
