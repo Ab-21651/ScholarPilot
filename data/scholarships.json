@@ -1,0 +1,493 @@
+{
+  "_meta": {
+    "description": "ScholarPilot seed catalog. Each entry must be verified against its official page by a human reviewer before it is marked verified.",
+    "schema_version": 1,
+    "levels": ["bachelor", "master"],
+    "eligibility_fields": {
+      "nationality": "list of eligible nationalities, or 'any'",
+      "nationality_status": "'confirmed' or 'verify' (participation changes year to year)",
+      "min_age / max_age": "age limits, checked on age_reference",
+      "age_reference": "{month, day, years_after_deadline}: the date on which age is measured; omit to use the deadline",
+      "min_grade_percent": "school leavers: minimum HSSC / A-Level equivalent percentage",
+      "min_cgpa_percent": "graduates: minimum CGPA as a percentage of the scale",
+      "min_work_experience_months": "full-time work experience required",
+      "max_years_since_graduation": "degree must not be older than this",
+      "english": "{required, accepted: {ielts, toefl_ibt, pte, duolingo}, note}",
+      "requires_financial_need": "true if the award is need-based",
+      "other": "conditions the engine cannot check automatically"
+    }
+  },
+  "scholarships": [
+    {
+      "id": "daad-epos",
+      "name": "DAAD EPOS - Development-Related Postgraduate Courses",
+      "country": "Germany",
+      "provider": "DAAD (German Academic Exchange Service)",
+      "funding": "full",
+      "funding_details": "Monthly DAAD stipend, health insurance, travel allowance and study/research subsidy. Tuition at German public universities is free or very low.",
+      "fields": ["development studies", "engineering", "economics", "public health", "agriculture", "environment", "urban planning", "education"],
+      "official_url": "https://www.daad.pk/en/",
+      "apply_url": "https://www2.daad.de/deutschland/stipendium/datenbank/en/21148-scholarship-database/",
+      "official_domains": ["daad.de", "daad.pk"],
+      "monitor_urls": ["https://www.daad.pk/en/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_work_experience_months": 24,
+            "max_years_since_graduation": 6,
+            "min_cgpa_percent": null,
+            "english": {"required": true, "accepted": {"ielts": 6.0, "toefl_ibt": 80}, "note": "Language requirement is set by each EPOS course; some courses need IELTS 6.5 or German."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree in a subject related to the chosen course", "At least two years of relevant professional experience at the time of application", "Applications go directly to the chosen EPOS course, not to DAAD"]
+          },
+          "deadline": {"month": 10, "day": 15, "approximate": true, "note": "Each course sets its own deadline; most fall between August and October for the following year's intake."},
+          "documents": ["DAAD application form (from the course)", "CV in Europass format", "Motivation letter linked to your work", "Recommendation letter from your employer", "Proof of work experience", "Degree and transcripts (HEC attested)", "Language certificate (IELTS/TOEFL or German)"],
+          "steps": ["Pick 1-3 EPOS courses from the DAAD scholarship database", "Check each course's own deadline and language requirement", "Prepare documents and get degree/transcripts attested by HEC", "Apply directly to the course using its DAAD application form", "Shortlisted candidates may be interviewed; DAAD makes the final selection"]
+        }
+      }
+    },
+    {
+      "id": "daad-helmut-schmidt",
+      "name": "DAAD Helmut-Schmidt-Programme (Public Policy and Good Governance)",
+      "country": "Germany",
+      "provider": "DAAD",
+      "funding": "full",
+      "funding_details": "Monthly stipend, health insurance, travel allowance and a German language course before the master's.",
+      "fields": ["public policy", "governance", "law", "economics", "political science", "public administration"],
+      "official_url": "https://www.daad.pk/en/",
+      "apply_url": "https://www2.daad.de/deutschland/stipendium/datenbank/en/21148-scholarship-database/",
+      "official_domains": ["daad.de", "daad.pk"],
+      "monitor_urls": ["https://www.daad.pk/en/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "verify",
+            "max_years_since_graduation": 6,
+            "english": {"required": true, "accepted": {"ielts": 6.5, "toefl_ibt": 90}, "note": "Some partner master's programmes accept IELTS 6.0; check the course."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree in law, economics, political or social sciences, or public administration", "Work experience is an advantage", "Commitment to working in the public sector in Pakistan"]
+          },
+          "deadline": {"month": 7, "day": 31, "approximate": true, "note": "Usually closes in summer for the intake starting the following year."},
+          "documents": ["Online DAAD application", "CV (Europass)", "Motivation letter", "Recommendation letter", "Degree and transcripts", "Language certificate"],
+          "steps": ["Choose up to three partner master's programmes", "Apply through the DAAD portal before the deadline", "Interview in Pakistan if shortlisted", "German language course before starting"]
+        }
+      }
+    },
+    {
+      "id": "deutschlandstipendium",
+      "name": "Deutschlandstipendium",
+      "country": "Germany",
+      "provider": "German Federal Ministry of Education and Research with partner universities",
+      "funding": "partial",
+      "funding_details": "A fixed monthly amount for at least two semesters, regardless of income. It does not cover full living costs.",
+      "fields": ["any"],
+      "official_url": "https://www.deutschlandstipendium.de/",
+      "apply_url": "https://www.deutschlandstipendium.de/",
+      "official_domains": ["deutschlandstipendium.de"],
+      "monitor_urls": ["https://www.deutschlandstipendium.de/"],
+      "tracks": {
+        "bachelor": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "min_grade_percent": 80,
+            "english": {"required": false, "accepted": {}, "note": "Language is set by your degree programme."},
+            "requires_financial_need": false,
+            "other": ["You must be admitted to or enrolled at a participating German university", "Selection on grades, social commitment and personal circumstances"]
+          },
+          "deadline": {"month": 8, "day": 31, "approximate": true, "note": "Each university runs its own call, usually once a year."},
+          "documents": ["University application form", "Transcripts", "CV", "Motivation letter", "Proof of social engagement (optional)"],
+          "steps": ["Get admission to a participating German university", "Watch your university's scholarship page for the call", "Apply through the university"]
+        },
+        "master": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "min_cgpa_percent": 80,
+            "english": {"required": false, "accepted": {}, "note": "Language is set by your degree programme."},
+            "requires_financial_need": false,
+            "other": ["You must be admitted to or enrolled at a participating German university"]
+          },
+          "deadline": {"month": 8, "day": 31, "approximate": true, "note": "Each university runs its own call."},
+          "documents": ["University application form", "Transcripts", "CV", "Motivation letter"],
+          "steps": ["Get admission to a participating German university", "Apply through the university's scholarship office"]
+        }
+      }
+    },
+    {
+      "id": "chevening",
+      "name": "Chevening Scholarships",
+      "country": "United Kingdom",
+      "provider": "UK Foreign, Commonwealth & Development Office",
+      "funding": "full",
+      "funding_details": "Tuition, monthly living allowance, return flights and arrival/departure allowances for a one-year master's in the UK.",
+      "fields": ["any"],
+      "official_url": "https://www.chevening.org/scholarships/",
+      "apply_url": "https://www.chevening.org/apply/",
+      "official_domains": ["chevening.org", "gov.uk"],
+      "monitor_urls": ["https://www.chevening.org/apply/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_work_experience_months": 24,
+            "english": {"required": false, "accepted": {}, "note": "Chevening no longer sets its own English requirement, but your UK university will."},
+            "requires_financial_need": false,
+            "other": ["At least 2,800 hours (about two years) of work experience", "An undergraduate degree that gets you into a UK postgraduate course", "Apply to three eligible UK master's courses", "Return to Pakistan for at least two years after the award", "Have not previously studied in the UK on UK government funding"]
+          },
+          "deadline": {"month": 10, "day": 7, "approximate": true, "note": "Applications usually open in August and close in early October."},
+          "documents": ["Online application with four essays (leadership, networking, studying in the UK, career plan)", "Two reference letters", "Degree and transcripts", "Passport / CNIC", "Unconditional offer from a UK university (by the July deadline)"],
+          "steps": ["Shortlist three UK master's courses", "Write the four Chevening essays", "Submit the online application before the deadline", "Interview at the British High Commission if shortlisted (around February-March)", "Secure an unconditional university offer by July"]
+        }
+      }
+    },
+    {
+      "id": "commonwealth-masters",
+      "name": "Commonwealth Master's Scholarships",
+      "country": "United Kingdom",
+      "provider": "Commonwealth Scholarship Commission in the UK",
+      "funding": "full",
+      "funding_details": "Tuition, airfare, monthly stipend and other allowances.",
+      "fields": ["development-related subjects"],
+      "official_url": "https://cscuk.fcdo.gov.uk/scholarships/commonwealth-masters-scholarships/",
+      "apply_url": "https://cscuk.fcdo.gov.uk/scholarships/commonwealth-masters-scholarships/",
+      "official_domains": ["cscuk.fcdo.gov.uk", "fcdo.gov.uk", "hec.gov.pk"],
+      "monitor_urls": ["https://cscuk.fcdo.gov.uk/scholarships/commonwealth-masters-scholarships/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_cgpa_percent": 65,
+            "english": {"required": true, "accepted": {"ielts": 6.5, "toefl_ibt": 90}, "note": "Required by the UK university; scores vary by course."},
+            "requires_financial_need": true,
+            "other": ["First degree of at least upper second-class (2:1) standard or equivalent", "Unable to afford UK study without the scholarship", "Must be nominated by HEC Pakistan; HEC sets an earlier national deadline"]
+          },
+          "deadline": {"month": 10, "day": 15, "approximate": true, "note": "The CSC deadline is usually mid-October; the HEC nomination deadline comes earlier."},
+          "documents": ["CSC online application", "HEC nomination form", "Degree and transcripts", "Two references", "Development impact statement", "Passport / CNIC"],
+          "steps": ["Watch HEC's call for Commonwealth nominations", "Apply to HEC as the nominating agency", "Complete the CSC online application", "Apply to up to three UK universities"]
+        }
+      }
+    },
+    {
+      "id": "great-scholarships",
+      "name": "GREAT Scholarships",
+      "country": "United Kingdom",
+      "provider": "British Council and UK universities",
+      "funding": "partial",
+      "funding_details": "A tuition fee contribution (around GBP 10,000) for a one-year postgraduate taught course.",
+      "fields": ["varies by university"],
+      "official_url": "https://study-uk.britishcouncil.org/scholarships-funding/great-scholarships",
+      "apply_url": "https://study-uk.britishcouncil.org/scholarships-funding/great-scholarships",
+      "official_domains": ["britishcouncil.org", "study-uk.britishcouncil.org"],
+      "monitor_urls": ["https://study-uk.britishcouncil.org/scholarships-funding/great-scholarships"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "verify",
+            "english": {"required": true, "accepted": {"ielts": 6.5}, "note": "Set by each university."},
+            "requires_financial_need": false,
+            "other": ["Offer for an eligible one-year master's at a participating university", "Classed as an international (overseas) fee payer"]
+          },
+          "deadline": {"month": 5, "day": 1, "approximate": true, "note": "Each university sets its own deadline, mostly in spring."},
+          "documents": ["University scholarship application", "Offer letter", "Personal statement", "Transcripts"],
+          "steps": ["Check which universities offer GREAT scholarships to Pakistan this year", "Apply for the course", "Apply for the scholarship through the university"]
+        }
+      }
+    },
+    {
+      "id": "stipendium-hungaricum",
+      "name": "Stipendium Hungaricum",
+      "country": "Hungary",
+      "provider": "Tempus Public Foundation (Government of Hungary)",
+      "funding": "full",
+      "funding_details": "Tuition waiver, monthly stipend, accommodation contribution and medical insurance.",
+      "fields": ["any"],
+      "official_url": "https://stipendiumhungaricum.hu/",
+      "apply_url": "https://apply.stipendiumhungaricum.hu/",
+      "official_domains": ["stipendiumhungaricum.hu", "tpf.hu", "hec.gov.pk"],
+      "monitor_urls": ["https://stipendiumhungaricum.hu/"],
+      "tracks": {
+        "bachelor": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_grade_percent": 60,
+            "english": {"required": true, "accepted": {"ielts": 5.5, "toefl_ibt": 72, "duolingo": 100}, "note": "Universities set the score; some accept their own test or an interview."},
+            "requires_financial_need": false,
+            "other": ["Completed (or completing) HSSC / A-Levels before the course starts", "Nominated by HEC Pakistan after applying online"]
+          },
+          "deadline": {"month": 1, "day": 15, "approximate": true, "note": "The online application usually closes in mid-January."},
+          "documents": ["Online application", "HSSC certificate and transcripts (IBCC attested)", "Passport", "Motivation letter", "Medical certificate", "Language certificate"],
+          "steps": ["Choose up to two programmes on the application portal", "Submit online by the January deadline", "HEC reviews and nominates", "University entrance exam / interview", "Final results usually in spring"]
+        },
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_cgpa_percent": 60,
+            "english": {"required": true, "accepted": {"ielts": 6.0, "toefl_ibt": 79, "duolingo": 105}, "note": "Set by each university."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree completed before the course starts", "Nominated by HEC Pakistan"]
+          },
+          "deadline": {"month": 1, "day": 15, "approximate": true, "note": "The online application usually closes in mid-January."},
+          "documents": ["Online application", "Bachelor's degree and transcripts (HEC attested)", "Passport", "Motivation letter", "Two recommendation letters", "Medical certificate", "Language certificate"],
+          "steps": ["Choose up to two programmes", "Submit online by the January deadline", "HEC nomination", "University interview", "Results in spring"]
+        }
+      }
+    },
+    {
+      "id": "italy-maeci",
+      "name": "Italian Government (MAECI) Scholarships for Foreign Students",
+      "country": "Italy",
+      "provider": "Italian Ministry of Foreign Affairs and International Cooperation",
+      "funding": "full",
+      "funding_details": "A monthly allowance and a tuition fee exemption for the academic year. Check the yearly call for current amounts.",
+      "fields": ["any"],
+      "official_url": "https://studyinitaly.esteri.it/",
+      "apply_url": "https://studyinitaly.esteri.it/",
+      "official_domains": ["esteri.it", "studyinitaly.esteri.it"],
+      "monitor_urls": ["https://studyinitaly.esteri.it/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "verify",
+            "english": {"required": true, "accepted": {"ielts": 6.0}, "note": "Depends on the course language (English or Italian)."},
+            "requires_financial_need": false,
+            "other": ["Age limit is set in each year's call; check before applying", "Admission to an Italian university master's programme"]
+          },
+          "deadline": {"month": 5, "day": 31, "approximate": true, "note": "The call is usually published in spring."},
+          "documents": ["Online application", "Degree and transcripts", "Passport", "Admission or pre-enrollment proof (Universitaly)", "Language certificate"],
+          "steps": ["Pre-enroll through Universitaly", "Apply on the Study in Italy portal when the call opens", "Wait for the published results"]
+        }
+      }
+    },
+    {
+      "id": "italy-dsu",
+      "name": "Italian Regional Right-to-Study (DSU) Scholarships",
+      "country": "Italy",
+      "provider": "Italian regional agencies (e.g. Lazio DiSCo, EDISU Piemonte, ER.GO)",
+      "funding": "full",
+      "funding_details": "Need-based: a yearly cash grant, tuition exemption, and in many regions free meals or a place in student housing.",
+      "fields": ["any"],
+      "official_url": "https://www.universitaly.it/",
+      "apply_url": "https://www.universitaly.it/",
+      "official_domains": ["universitaly.it", "laziodisco.it", "edisu.piemonte.it", "er-go.it"],
+      "monitor_urls": ["https://www.universitaly.it/"],
+      "tracks": {
+        "bachelor": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "english": {"required": true, "accepted": {"ielts": 5.5}, "note": "Set by the degree programme."},
+            "requires_financial_need": true,
+            "other": ["Family income and assets below the regional threshold (proven with ISEE-equivalent documents translated and legalized)", "Admission to a university in that region"]
+          },
+          "deadline": {"month": 8, "day": 31, "approximate": true, "note": "Each region publishes its own call, usually July to September."},
+          "documents": ["Family income certificate", "Family assets / property documents", "Family composition certificate (NADRA FRC)", "Translations and legalization by the Italian embassy", "Admission letter"],
+          "steps": ["Get admission to an Italian university", "Collect family income documents early (legalization takes weeks)", "Apply on the regional DSU agency's portal", "Check the provisional ranking"]
+        },
+        "master": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "english": {"required": true, "accepted": {"ielts": 6.0}, "note": "Set by the degree programme."},
+            "requires_financial_need": true,
+            "other": ["Family income and assets below the regional threshold", "Admission to a university in that region"]
+          },
+          "deadline": {"month": 8, "day": 31, "approximate": true, "note": "Each region publishes its own call."},
+          "documents": ["Family income certificate", "Family assets documents", "Family composition certificate (NADRA FRC)", "Translations and legalization", "Admission letter"],
+          "steps": ["Get admission", "Prepare legalized family documents", "Apply on the regional DSU portal"]
+        }
+      }
+    },
+    {
+      "id": "erasmus-mundus",
+      "name": "Erasmus Mundus Joint Master's Scholarships",
+      "country": "Europe (multiple countries)",
+      "provider": "European Union (EACEA) and university consortia",
+      "funding": "full",
+      "funding_details": "Monthly allowance, tuition and participation costs, travel and insurance, for joint master's programmes taught in two or more European countries.",
+      "fields": ["any"],
+      "official_url": "https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en",
+      "apply_url": "https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en",
+      "official_domains": ["europa.eu", "ec.europa.eu", "eacea.ec.europa.eu"],
+      "monitor_urls": ["https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "english": {"required": true, "accepted": {"ielts": 6.5, "toefl_ibt": 90}, "note": "Each programme sets its own score."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree (or final year)", "Have not already received an Erasmus Mundus master's scholarship", "Apply directly to each programme's consortium"]
+          },
+          "deadline": {"month": 1, "day": 15, "approximate": true, "note": "Most programmes close between October and February."},
+          "documents": ["Programme application form", "CV (Europass)", "Motivation letter", "Two recommendation letters", "Degree and transcripts", "Language certificate", "Passport"],
+          "steps": ["Browse the EACEA Erasmus Mundus catalogue", "Shortlist programmes (you may apply to up to three)", "Apply on each programme's own website before its deadline"]
+        }
+      }
+    },
+    {
+      "id": "mext-undergraduate",
+      "name": "MEXT Japanese Government Scholarship - Undergraduate (Embassy Recommendation)",
+      "country": "Japan",
+      "provider": "Japanese Ministry of Education (MEXT) through the Embassy of Japan in Pakistan",
+      "funding": "full",
+      "funding_details": "Tuition, monthly stipend and return airfare, including a year of Japanese language preparation.",
+      "fields": ["social sciences", "humanities", "natural sciences", "engineering"],
+      "official_url": "https://www.pk.emb-japan.go.jp/",
+      "apply_url": "https://www.pk.emb-japan.go.jp/",
+      "official_domains": ["emb-japan.go.jp", "pk.emb-japan.go.jp", "mext.go.jp", "studyinjapan.go.jp"],
+      "monitor_urls": ["https://www.pk.emb-japan.go.jp/"],
+      "tracks": {
+        "bachelor": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "min_age": 17,
+            "max_age": 24,
+            "age_reference": {"month": 4, "day": 1, "years_after_deadline": 1},
+            "english": {"required": false, "accepted": {}, "note": "Selection includes the embassy's written exams (English, Mathematics, Science or Japanese) and an interview."},
+            "requires_financial_need": false,
+            "other": ["Completed 12 years of school education (HSSC / A-Levels)", "Must be under 25 on 1 April of the year you arrive in Japan", "Willing to learn Japanese"]
+          },
+          "deadline": {"month": 5, "day": 15, "approximate": true, "note": "The embassy usually announces the call in April with a May deadline."},
+          "documents": ["Application form", "Placement preference form", "Academic transcripts and certificates", "Recommendation from school principal", "Medical certificate", "Passport photos"],
+          "steps": ["Watch the Embassy of Japan in Pakistan website for the call", "Submit documents to the embassy", "Sit the written exams", "Interview", "Final MEXT selection"]
+        }
+      }
+    },
+    {
+      "id": "mext-research",
+      "name": "MEXT Japanese Government Scholarship - Research Student (Embassy Recommendation)",
+      "country": "Japan",
+      "provider": "MEXT through the Embassy of Japan in Pakistan",
+      "funding": "full",
+      "funding_details": "Tuition, monthly stipend and airfare. You begin as a research student and can move into a master's programme.",
+      "fields": ["any"],
+      "official_url": "https://www.pk.emb-japan.go.jp/",
+      "apply_url": "https://www.pk.emb-japan.go.jp/",
+      "official_domains": ["emb-japan.go.jp", "pk.emb-japan.go.jp", "mext.go.jp", "studyinjapan.go.jp"],
+      "monitor_urls": ["https://www.pk.emb-japan.go.jp/"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "max_age": 34,
+            "age_reference": {"month": 4, "day": 1, "years_after_deadline": 1},
+            "english": {"required": false, "accepted": {}, "note": "The embassy runs English and Japanese tests; many supervisors also ask for IELTS/TOEFL."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree (16 years of education)", "Under 35 on 1 April of the year you arrive", "A clear research plan; contacting a Japanese supervisor first is strongly recommended"]
+          },
+          "deadline": {"month": 5, "day": 15, "approximate": true, "note": "The embassy usually announces the call in April."},
+          "documents": ["Application form", "Field of study and research plan", "Transcripts and degree", "Recommendation from your university", "Medical certificate", "Abstract of thesis (if any)", "Language certificates"],
+          "steps": ["Contact potential supervisors in Japan", "Apply to the embassy", "Written test and interview", "Get a letter of acceptance from a Japanese university", "MEXT final selection"]
+        }
+      }
+    },
+    {
+      "id": "adb-jsp",
+      "name": "ADB-Japan Scholarship Program",
+      "country": "Japan",
+      "provider": "Asian Development Bank with participating institutions",
+      "funding": "full",
+      "funding_details": "Tuition, monthly subsistence and housing allowance, books, medical insurance and travel.",
+      "fields": ["economics", "management", "science and technology", "development-related fields"],
+      "official_url": "https://www.adb.org/work-with-us/careers/japan-scholarship-program",
+      "apply_url": "https://www.adb.org/work-with-us/careers/japan-scholarship-program",
+      "official_domains": ["adb.org"],
+      "monitor_urls": ["https://www.adb.org/work-with-us/careers/japan-scholarship-program"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "confirmed",
+            "max_age": 35,
+            "min_work_experience_months": 24,
+            "english": {"required": true, "accepted": {"ielts": 6.5, "toefl_ibt": 79}, "note": "Set by the participating institution."},
+            "requires_financial_need": false,
+            "other": ["Bachelor's degree with a superior academic record", "At least two years of full-time professional experience", "Admission to a participating institution (in Japan or the Asia-Pacific)", "Commit to returning home after study"]
+          },
+          "deadline": {"month": 12, "day": 1, "approximate": true, "note": "Each participating institution sets its own deadline."},
+          "documents": ["Institution application", "ADB-JSP application", "Two recommendation letters", "Employment certificate", "Transcripts and degree", "Language certificate"],
+          "steps": ["Choose a participating institution and programme", "Apply for admission and indicate ADB-JSP", "The institution nominates candidates to ADB"]
+        }
+      }
+    },
+    {
+      "id": "australia-awards",
+      "name": "Australia Awards Scholarships",
+      "country": "Australia",
+      "provider": "Australian Department of Foreign Affairs and Trade (DFAT)",
+      "funding": "full",
+      "funding_details": "Full tuition, return airfare, establishment allowance, contribution to living expenses and health cover.",
+      "fields": ["priority development areas"],
+      "official_url": "https://www.dfat.gov.au/people-to-people/australia-awards",
+      "apply_url": "https://www.dfat.gov.au/people-to-people/australia-awards",
+      "official_domains": ["dfat.gov.au", "australiaawards.gov.au"],
+      "monitor_urls": ["https://www.dfat.gov.au/people-to-people/australia-awards"],
+      "tracks": {
+        "master": {
+          "eligibility": {
+            "nationality": ["Pakistan"],
+            "nationality_status": "verify",
+            "min_work_experience_months": 24,
+            "english": {"required": true, "accepted": {"ielts": 6.5, "toefl_ibt": 79, "pte": 58}, "note": "Usually IELTS 6.5 overall with no band below 6.0."},
+            "requires_financial_need": false,
+            "other": ["Pakistan's participation changes over time; confirm it is on the current country list", "Return home for at least two years after the award", "Not married or engaged to an Australian/New Zealand citizen or permanent resident"]
+          },
+          "deadline": {"month": 4, "day": 30, "approximate": true, "note": "Rounds usually open in February and close at the end of April."},
+          "documents": ["Online application (OASIS)", "Degree and transcripts", "Two referee reports", "Employment evidence", "Passport", "English test result"],
+          "steps": ["Confirm Pakistan is listed for the current round", "Apply on OASIS", "Shortlisting and interview", "Placement at an Australian university"]
+        }
+      }
+    },
+    {
+      "id": "destination-australia",
+      "name": "Destination Australia Scholarship",
+      "country": "Australia",
+      "provider": "Australian Department of Education with regional institutions",
+      "funding": "partial",
+      "funding_details": "Up to AUD 15,000 per year towards study at a regional campus. It does not cover full tuition.",
+      "fields": ["varies by institution"],
+      "official_url": "https://www.education.gov.au/destination-australia",
+      "apply_url": "https://www.education.gov.au/destination-australia",
+      "official_domains": ["education.gov.au"],
+      "monitor_urls": ["https://www.education.gov.au/destination-australia"],
+      "tracks": {
+        "bachelor": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "english": {"required": true, "accepted": {"ielts": 6.0, "pte": 50}, "note": "Set by the university."},
+            "requires_financial_need": false,
+            "other": ["Study at an eligible regional campus", "Apply through the institution's own scholarship process"]
+          },
+          "deadline": {"month": 11, "day": 30, "approximate": true, "note": "Institutions set their own deadlines."},
+          "documents": ["University application", "Transcripts", "Passport", "English test result"],
+          "steps": ["Find participating regional institutions", "Apply for admission", "Apply for the scholarship with the institution"]
+        },
+        "master": {
+          "eligibility": {
+            "nationality": "any",
+            "nationality_status": "confirmed",
+            "english": {"required": true, "accepted": {"ielts": 6.5, "pte": 58}, "note": "Set by the university."},
+            "requires_financial_need": false,
+            "other": ["Study at an eligible regional campus"]
+          },
+          "deadline": {"month": 11, "day": 30, "approximate": true, "note": "Institutions set their own deadlines."},
+          "documents": ["University application", "Transcripts", "Passport", "English test result"],
+          "steps": ["Find participating regional institutions", "Apply for admission", "Apply for the scholarship with the institution"]
+        }
+      }
+    }
+  ]
+}
