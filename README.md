@@ -67,7 +67,9 @@ py -m venv .venv
 py -m pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env`, then set `ANTHROPIC_API_KEY`, a long random `JWT_SECRET`, and your email in `ADMIN_EMAILS` so your account gets reviewer access.
+Copy `.env.example` to `.env`, then set `GROQ_API_KEY`, a long random `JWT_SECRET`, and your email in `ADMIN_EMAILS` so your account gets reviewer access.
+
+**Model:** the agent runs on `openai/gpt-oss-120b` through Groq's OpenAI-compatible API. Get a free key at https://console.groq.com/keys. Free-tier limits are per organization; check yours at https://console.groq.com/settings/limits. Any other OpenAI-compatible provider works by changing `LLM_BASE_URL`, `GROQ_API_KEY`/`LLM_API_KEY` and `LLM_MODEL`.
 
 ## Run
 

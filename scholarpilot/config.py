@@ -19,10 +19,15 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    model: str = os.getenv("SCHOLARPILOT_MODEL", "claude-opus-5-5")
-    effort: str = os.getenv("SCHOLARPILOT_EFFORT", "medium")
-    max_agent_steps: int = int(os.getenv("SCHOLARPILOT_MAX_STEPS", "12"))
+    # Any OpenAI-compatible chat API works. Default: Groq.
+    llm_api_key: str = os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY", "")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+    model: str = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
+    # low | medium | high (GPT-OSS reasoning depth)
+    reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "medium")
+    max_output_tokens: int = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "4096"))
+    # GPT-OSS on Groq makes one tool call per step, so allow enough steps.
+    max_agent_steps: int = int(os.getenv("SCHOLARPILOT_MAX_STEPS", "15"))
 
     jwt_secret: str = os.getenv("JWT_SECRET", "dev-secret-change-me")
     jwt_hours: int = int(os.getenv("JWT_HOURS", "72"))

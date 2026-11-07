@@ -1,32 +1,31 @@
-"""The agent loop: the model plans, calls tools, reads the results, and repeats until it can answer."""
+"""The agent loop: the model plans, calls tools, reads the results, and repeats until it can answer.
+
+Messages use the OpenAI chat format (system / user / assistant with tool_calls / tool),
+which Groq and most other providers accept.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-import anthropic
+import openai
 from sqlalchemy.orm import Session
 
 from .. import catalog
 from ..config import settings
+from ..llm import LLMNotConfigured, chat, get_client
 from ..memory import memory_context, record_tool_events, refresh_stale_episodes
 from ..models import Conversation, User
 from .prompts import SYSTEM_PROMPT, user_context
-from .tools import TOOLS, ToolContext, execute
+from .tools import ToolContext, execute, openai_tools
 
 log = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
-
-
-def get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key or None)
-    return _client
+TOOL_FORMAT_RETRIES = 2  # Groq returns 400 tool_use_failed when the model writes a malformed tool call
 
 
 @dataclass
@@ -34,33 +33,71 @@ class AgentReply:
     text: str
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     created_drafts: list[int] = field(default_factory=list)
-    stopped_reason: str = "end_turn"
-
-
-def _block_to_dict(block: Any) -> dict[str, Any]:
-    if isinstance(block, dict):
-        return block
-    return block.model_dump(mode="json", exclude_none=True)
+    stopped_reason: str = "stop"
 
 
 def _short(result_json: str, limit: int = 400) -> str:
     return result_json if len(result_json) <= limit else result_json[:limit] + "..."
 
 
-def _call_model(client: anthropic.Anthropic, system: list[dict[str, Any]], messages: list[dict[str, Any]]):
-    return client.beta.messages.create(
-        model=settings.model,
-        max_tokens=16000,
-        system=system,
-        tools=TOOLS,
-        messages=messages,
-        thinking={"type": "adaptive"},
-        output_config={"effort": settings.effort},
-        cache_control={"type": "ephemeral"},
-        # If the main model declines, the API retries on a suitable fallback model.
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-    )
+def normalize_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert chats saved in the older block format (content lists with tool_use /
+    tool_result blocks) to the OpenAI format. Already-converted messages pass through."""
+    out: list[dict[str, Any]] = []
+    for m in messages or []:
+        content = m.get("content")
+        if not isinstance(content, list):
+            out.append(m)
+            continue
+        if m["role"] == "assistant":
+            text = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
+            calls = [
+                {"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                for b in content if b.get("type") == "tool_use"
+            ]
+            msg: dict[str, Any] = {"role": "assistant", "content": text}
+            if calls:
+                msg["tool_calls"] = calls
+            out.append(msg)
+        else:
+            results = [b for b in content if b.get("type") == "tool_result"]
+            for b in results:
+                out.append({"role": "tool", "tool_call_id": b["tool_use_id"], "content": str(b.get("content", ""))})
+            texts = [b.get("text", "") for b in content if b.get("type") == "text"]
+            if texts:
+                out.append({"role": "user", "content": "\n".join(texts)})
+    return out
+
+
+def _assistant_message(msg: Any) -> dict[str, Any]:
+    out: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
+    if msg.tool_calls:
+        out["tool_calls"] = [
+            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
+            for tc in msg.tool_calls
+        ]
+    return out
+
+
+def _parse_args(raw: str) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        value = json.loads(raw or "{}")
+    except json.JSONDecodeError as e:
+        return None, f"Arguments were not valid JSON ({e}). Call the tool again with a valid JSON object."
+    if not isinstance(value, dict):
+        return None, "Arguments must be a JSON object."
+    return value, None
+
+
+def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tools: list[dict[str, Any]]):
+    for attempt in range(TOOL_FORMAT_RETRIES + 1):
+        try:
+            return chat(client, messages, tools)
+        except openai.BadRequestError as e:
+            if "tool_use_failed" in str(e) and attempt < TOOL_FORMAT_RETRIES:
+                log.warning("Model produced a malformed tool call; retrying (%d)", attempt + 1)
+                continue
+            raise
 
 
 def run_agent(
@@ -68,13 +105,12 @@ def run_agent(
     user: User,
     conversation: Conversation,
     user_message: str,
-    client: anthropic.Anthropic | None = None,
+    client: openai.OpenAI | None = None,
 ) -> AgentReply:
     try:
         client = client or get_client()
-    except anthropic.AnthropicError:
-        log.exception("Could not create the Anthropic client")
-        return AgentReply(text="The assistant isn't configured yet. Add ANTHROPIC_API_KEY to the .env file and restart the server.", stopped_reason="error")
+    except LLMNotConfigured:
+        return AgentReply(text="The assistant isn't configured yet. Add GROQ_API_KEY to the .env file and restart the server.", stopped_reason="error")
     ctx = ToolContext(db, user)
 
     # Episodic memory: summarize other chats that changed since last time, then
@@ -86,86 +122,73 @@ def run_agent(
         db.rollback()
     names = {s["id"]: s["name"] for s in catalog.all_scholarships(db)}
     memory = memory_context(db, user, conversation.id, names)
+    system = SYSTEM_PROMPT + "\n\n" + user_context(user.full_name, user.target_level, user.role, memory)
 
-    system = [
-        {"type": "text", "text": SYSTEM_PROMPT},
-        {"type": "text", "text": user_context(user.full_name, user.target_level, user.role, memory)},
-    ]
+    history = normalize_history(list(conversation.messages or []))
+    history.append({"role": "user", "content": user_message})
+    tools = openai_tools()
     events: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
-    messages: list[dict[str, Any]] = list(conversation.messages or [])
-    messages.append({"role": "user", "content": user_message})
     reply = AgentReply(text="")
 
     try:
         for _ in range(settings.max_agent_steps):
-            response = _call_model(client, system, messages)
-            content = [_block_to_dict(b) for b in response.content]
-            reply.stopped_reason = response.stop_reason or "end_turn"
+            response = _call_with_retry(client, [{"role": "system", "content": system}, *history], tools)
+            choice = response.choices[0]
+            msg = choice.message
+            reply.stopped_reason = choice.finish_reason or "stop"
 
-            if response.stop_reason == "refusal":
+            if choice.finish_reason == "content_filter":
                 reply.text = "Sorry, I can't help with that request. I can help you find and apply for scholarships."
                 # Drop the refused turn entirely so the saved history stays valid.
-                messages = list(conversation.messages or [])
+                history = normalize_history(list(conversation.messages or []))
                 break
 
-            messages.append({"role": "assistant", "content": content})
+            assistant = _assistant_message(msg)
+            history.append(assistant)
 
-            if response.stop_reason == "pause_turn":
-                continue
-
-            tool_uses = [b for b in content if b.get("type") == "tool_use"]
-            if response.stop_reason != "tool_use" or not tool_uses:
-                reply.text = "\n\n".join(b["text"] for b in content if b.get("type") == "text").strip()
-                if response.stop_reason == "max_tokens":
+            if not msg.tool_calls:
+                reply.text = (msg.content or "").strip()
+                if choice.finish_reason == "length":
                     reply.text += "\n\n(My answer was cut short. Ask me to continue.)"
                 break
 
-            results = []
-            for tu in tool_uses:
-                output, is_error, result = execute(ctx, tu["name"], tu.get("input") or {})
-                events.append((tu["name"], tu.get("input") or {}, result))
-                reply.tool_calls.append({"tool": tu["name"], "input": tu.get("input"), "is_error": is_error, "result": _short(output)})
-                results.append({"type": "tool_result", "tool_use_id": tu["id"], "content": output, "is_error": is_error})
-            messages.append({"role": "user", "content": results})
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                args, parse_error = _parse_args(tc.function.arguments)
+                if parse_error:
+                    output, is_error, result = json.dumps({"error": parse_error}), True, {"error": parse_error}
+                else:
+                    output, is_error, result = execute(ctx, name, args)
+                events.append((name, args or {}, result))
+                reply.tool_calls.append({"tool": name, "input": args, "is_error": is_error, "result": _short(output)})
+                history.append({"role": "tool", "tool_call_id": tc.id, "content": output})
         else:
             reply.text = "I took too many steps on this one. Could you ask again, a bit more specifically?"
             reply.stopped_reason = "max_steps"
-    except anthropic.AuthenticationError:
-        log.exception("Anthropic authentication failed")
-        reply.text = "The assistant isn't configured yet (missing or invalid ANTHROPIC_API_KEY)."
+    except openai.AuthenticationError:
+        log.exception("LLM authentication failed")
+        reply.text = "The assistant's API key is invalid. Check GROQ_API_KEY in the .env file."
         reply.stopped_reason = "error"
         return reply
-    except anthropic.RateLimitError:
-        reply.text = "The assistant is busy right now. Please try again in a minute."
-        reply.stopped_reason = "error"
+    except openai.RateLimitError:
+        reply.text = "The AI service's usage limit has been reached. Please try again in a minute (or tomorrow, if the daily limit is used up)."
+        reply.stopped_reason = "rate_limited"
         return reply
-    except anthropic.APIStatusError as e:
-        log.exception("Anthropic API error")
-        reply.text = f"The assistant hit an error ({e.status_code}). Please try again."
-        reply.stopped_reason = "error"
-        return reply
-    except anthropic.APIConnectionError:
+    except openai.APIConnectionError:
         reply.text = "I couldn't reach the AI service. Check the internet connection and try again."
         reply.stopped_reason = "error"
         return reply
-    except anthropic.AnthropicError:
-        log.exception("Anthropic client error")
-        reply.text = "The assistant isn't configured correctly. Check ANTHROPIC_API_KEY in the .env file."
-        reply.stopped_reason = "error"
-        return reply
-    except TypeError as e:
-        # The SDK raises TypeError when no credentials are configured at all.
-        if "authentication" not in str(e).lower():
-            raise
-        reply.text = "The assistant isn't configured yet. Add ANTHROPIC_API_KEY to the .env file and restart the server."
+    except openai.APIStatusError as e:
+        log.exception("LLM API error")
+        reply.text = f"The assistant hit an error ({e.status_code}). Please try again."
         reply.stopped_reason = "error"
         return reply
 
-    # The history must end with a finished assistant turn so the next request is valid.
-    if messages and messages[-1]["role"] == "user" and isinstance(messages[-1]["content"], list):
-        messages.append({"role": "assistant", "content": [{"type": "text", "text": reply.text}]})
+    # The history must end with an assistant turn so the next request is valid.
+    if history and history[-1]["role"] == "tool":
+        history.append({"role": "assistant", "content": reply.text})
 
-    conversation.messages = messages
+    conversation.messages = history
     if conversation.title == "New chat":
         conversation.title = user_message[:60]
     conversation.updated_at = datetime.now(timezone.utc)
@@ -177,23 +200,19 @@ def run_agent(
 
 def visible_history(conversation: Conversation) -> list[dict[str, Any]]:
     """Messages the UI shows: user text and assistant text only."""
-    out = []
-    for m in conversation.messages or []:
-        if isinstance(m["content"], str):
-            out.append({"role": m["role"], "text": m["content"]})
-            continue
-        texts = [b.get("text", "") for b in m["content"] if b.get("type") == "text"]
-        tools = [b["name"] for b in m["content"] if b.get("type") == "tool_use"]
-        if m["role"] == "assistant" and (texts or tools):
-            out.append({"role": "assistant", "text": "\n\n".join(t for t in texts if t).strip(), "tools": tools})
-    merged: list[dict[str, Any]] = []
-    for m in out:
-        if merged and merged[-1]["role"] == "assistant" and m["role"] == "assistant":
-            merged[-1]["text"] = "\n\n".join(t for t in (merged[-1]["text"], m["text"]) if t)
-            merged[-1]["tools"] = merged[-1].get("tools", []) + m.get("tools", [])
-        else:
-            merged.append(m)
-    return [m for m in merged if m["text"] or m["role"] == "user"]
+    out: list[dict[str, Any]] = []
+    for m in normalize_history(conversation.messages or []):
+        if m["role"] == "user":
+            out.append({"role": "user", "text": m["content"]})
+        elif m["role"] == "assistant":
+            tools = [tc["function"]["name"] for tc in m.get("tool_calls", [])]
+            text = (m.get("content") or "").strip()
+            if out and out[-1]["role"] == "assistant":
+                out[-1]["text"] = "\n\n".join(t for t in (out[-1]["text"], text) if t)
+                out[-1]["tools"] += tools
+            else:
+                out.append({"role": "assistant", "text": text, "tools": tools})
+    return [m for m in out if m["text"] or m["role"] == "user"]
 
 
-__all__ = ["run_agent", "visible_history", "AgentReply"]
+__all__ = ["run_agent", "visible_history", "normalize_history", "AgentReply", "get_client"]

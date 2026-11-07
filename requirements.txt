@@ -4,7 +4,7 @@ SQLAlchemy==2.1.8
 pydantic==2.14.3
 email-validator==2.3.0
 PyJWT==2.15.1
-anthropic==2.6.0
+openai==3.46.0
 httpx==0.28.1
 beautifulsoup4==4.15.0
 APScheduler==3.11.3

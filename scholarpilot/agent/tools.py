@@ -287,3 +287,11 @@ def execute(ctx: ToolContext, name: str, args: dict[str, Any]) -> tuple[str, boo
         ctx.db.rollback()
         result = {"error": str(e)}
         return json.dumps(result), True, result
+
+
+def openai_tools() -> list[dict[str, Any]]:
+    """TOOLS in the OpenAI / Groq function-calling format."""
+    return [
+        {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+        for t in TOOLS
+    ]

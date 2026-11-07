@@ -1,8 +1,5 @@
 """Episodic memory and application tracker."""
 
-import copy
-from types import SimpleNamespace
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,24 +7,7 @@ from scholarpilot import memory
 from scholarpilot.agent import runner
 from scholarpilot.main import app
 
-
-class FakeMessages:
-    def __init__(self, script):
-        self.script = list(script)
-        self.calls = []
-
-    def create(self, **kwargs):
-        self.calls.append(copy.deepcopy(kwargs))
-        content, stop = self.script.pop(0)
-        return SimpleNamespace(content=content, stop_reason=stop)
-
-
-def fake_client(script):
-    return SimpleNamespace(beta=SimpleNamespace(messages=FakeMessages(script)))
-
-
-def tool_use(id_, name, args):
-    return {"type": "tool_use", "id": id_, "name": name, "input": args}
+from .fakes import call, fake_client, text
 
 
 def signup(c, email, level="master"):
@@ -73,11 +53,11 @@ def test_second_chat_remembers_first(monkeypatch):
         },
     )
     first = fake_client([
-        ([tool_use("a1", "check_eligibility", {"scholarship_ids": ["stipendium-hungaricum"]})], "tool_use"),
-        ([tool_use("a2", "update_application", {"scholarship_id": "stipendium-hungaricum", "status": "preparing", "next_action": "HEC attestation"})], "tool_use"),
-        ([{"type": "text", "text": "You're eligible. I added it to your tracker."}], "end_turn"),
+        call("a1", "check_eligibility", {"scholarship_ids": ["stipendium-hungaricum"]}),
+        call("a2", "update_application", {"scholarship_id": "stipendium-hungaricum", "status": "preparing", "next_action": "HEC attestation"}),
+        text("You're eligible. I added it to your tracker."),
     ])
-    second = fake_client([([{"type": "text", "text": "Welcome back! Last time you decided to apply to Stipendium Hungaricum."}], "end_turn")])
+    second = fake_client([text("Welcome back! Last time you decided to apply to Stipendium Hungaricum.")])
 
     with TestClient(app) as c:
         h = signup(c, "episodic@example.com")
@@ -95,7 +75,7 @@ def test_second_chat_remembers_first(monkeypatch):
         assert "Welcome back" in r["reply"]
 
         # the first chat was summarized and loaded into the second chat's context
-        context = second.beta.messages.calls[0]["system"][1]["text"]
+        context = second.chat.completions.calls[0]["messages"][0]["content"]
         assert "decided to apply" in context
         assert "Get transcripts attested by HEC" in context
         assert "stipendium-hungaricum" in context and "preparing" in context
@@ -106,8 +86,8 @@ def test_second_chat_remembers_first(monkeypatch):
 
         # recall tool finds it by keyword
         third = fake_client([
-            ([tool_use("r1", "recall_past_sessions", {"query": "hungaricum"})], "tool_use"),
-            ([{"type": "text", "text": "Found it."}], "end_turn"),
+            call("r1", "recall_past_sessions", {"query": "hungaricum"}),
+            text("Found it."),
         ])
         monkeypatch.setattr(runner, "get_client", lambda: third)
         r = c.post(f"/api/conversations/{c2}/messages", headers=h, json={"text": "What did we decide before?"}).json()

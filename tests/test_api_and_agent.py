@@ -1,8 +1,5 @@
 """End-to-end API tests, with a scripted fake model standing in for the LLM."""
 
-import copy
-from types import SimpleNamespace
-
 from fastapi.testclient import TestClient
 
 from scholarpilot import monitor
@@ -10,25 +7,7 @@ from scholarpilot.agent import runner
 from scholarpilot.main import app
 from scholarpilot.models import ChangeReview, Scholarship
 
-
-class FakeMessages:
-    def __init__(self, script):
-        self.script = list(script)
-        self.calls = []
-
-    def create(self, **kwargs):
-        self.calls.append(copy.deepcopy(kwargs))  # snapshot: the runner keeps appending to the same list
-        content, stop = self.script.pop(0)
-        return SimpleNamespace(content=content, stop_reason=stop)
-
-
-class FakeClient:
-    def __init__(self, script):
-        self.beta = SimpleNamespace(messages=FakeMessages(script))
-
-
-def tool_use(id_, name, args):
-    return {"type": "tool_use", "id": id_, "name": name, "input": args}
+from .fakes import call, fake_client, text
 
 
 def signup(client, email, level="master"):
@@ -61,12 +40,12 @@ def test_bachelor_account_sees_only_bachelor_tracks():
 
 def test_agent_loop_uses_tools_and_remembers(monkeypatch):
     script = [
-        ([{"type": "text", "text": "Let me save that."}, tool_use("t1", "update_profile", {"updates": {"ielts": 6.0, "cgpa": 3.2}})], "tool_use"),
-        ([tool_use("t2", "check_eligibility", {"scholarship_ids": ["erasmus-mundus"]})], "tool_use"),
-        ([tool_use("t3", "draft_email", {"to_office": "Programme coordinator", "subject": "Question about IELTS", "body": "Dear coordinator, ..."})], "tool_use"),
-        ([{"type": "text", "text": "You need IELTS 6.5 for Erasmus Mundus. I drafted an email for your approval."}], "end_turn"),
+        call("t1", "update_profile", {"updates": {"ielts": 6.0, "cgpa": 3.2}}, content="Let me save that."),
+        call("t2", "check_eligibility", {"scholarship_ids": ["erasmus-mundus"]}),
+        call("t3", "draft_email", {"to_office": "Programme coordinator", "subject": "Question about IELTS", "body": "Dear coordinator, ..."}),
+        text("You need IELTS 6.5 for Erasmus Mundus. I drafted an email for your approval."),
     ]
-    fake = FakeClient(script)
+    fake = fake_client(script)
     monkeypatch.setattr(runner, "get_client", lambda: fake)
     with TestClient(app) as c:
         h = signup(c, "sara@example.com")
@@ -79,11 +58,13 @@ def test_agent_loop_uses_tools_and_remembers(monkeypatch):
         # memory: the profile was saved
         assert c.get("/api/profile", headers=h).json()["ielts"] == 6.0
 
-        # the tool results were sent back to the model with matching ids
-        second_call = fake.beta.messages.calls[1]["messages"]
-        result_block = second_call[-1]["content"][0]
-        assert second_call[-1]["role"] == "user"
-        assert result_block["type"] == "tool_result" and result_block["tool_use_id"] == "t1"
+        # request shape: system prompt first, tools in function format, tool result sent back with the matching id
+        first = fake.chat.completions.calls[0]
+        assert first["messages"][0]["role"] == "system"
+        assert first["tools"][0]["type"] == "function" and first["tool_choice"] == "auto"
+        second = fake.chat.completions.calls[1]["messages"]
+        assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"][0]["id"] == "t1"
+        assert second[-1] == {**second[-1], "role": "tool", "tool_call_id": "t1"}
 
         # the draft waits for approval and is not sent by the agent
         drafts = c.get("/api/drafts", headers=h).json()["drafts"]
@@ -93,22 +74,46 @@ def test_agent_loop_uses_tools_and_remembers(monkeypatch):
 
         history = c.get(f"/api/conversations/{cid}", headers=h).json()["messages"]
         assert history[0]["role"] == "user" and history[-1]["role"] == "assistant"
+        assert "Let me save that." in history[-1]["text"]
 
 
 def test_tool_errors_are_returned_to_model(monkeypatch):
     script = [
-        ([tool_use("t1", "get_scholarship", {"scholarship_id": "does-not-exist"})], "tool_use"),
-        ([{"type": "text", "text": "That scholarship isn't in my catalog."}], "end_turn"),
+        call("t1", "get_scholarship", {"scholarship_id": "does-not-exist"}),
+        call("t2", "get_scholarship", "{not json"),
+        text("That scholarship isn't in my catalog."),
     ]
-    fake = FakeClient(script)
+    fake = fake_client(script)
     monkeypatch.setattr(runner, "get_client", lambda: fake)
     with TestClient(app) as c:
         h = signup(c, "omar@example.com")
         cid = c.post("/api/conversations", headers=h).json()["id"]
         r = c.post(f"/api/conversations/{cid}/messages", headers=h, json={"text": "Tell me about Fulbright"}).json()
-        assert r["tool_calls"][0]["is_error"] is True
-        sent = fake.beta.messages.calls[1]["messages"][-1]["content"][0]
-        assert sent["is_error"] is True
+        assert [t["is_error"] for t in r["tool_calls"]] == [True, True]
+        sent = fake.chat.completions.calls[1]["messages"][-1]
+        assert sent["role"] == "tool" and "No scholarship" in sent["content"]
+        assert "not valid JSON" in fake.chat.completions.calls[2]["messages"][-1]["content"]
+
+
+def test_missing_key_gives_friendly_reply():
+    with TestClient(app) as c:
+        h = signup(c, "nokey@example.com")
+        cid = c.post("/api/conversations", headers=h).json()["id"]
+        r = c.post(f"/api/conversations/{cid}/messages", headers=h, json={"text": "hi"})
+        assert r.status_code == 200 and "GROQ_API_KEY" in r.json()["reply"]
+
+
+def test_old_block_format_history_is_converted():
+    old = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": [{"type": "thinking", "thinking": ""}, {"type": "text", "text": "Checking"}, {"type": "tool_use", "id": "x1", "name": "get_profile", "input": {}}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "x1", "content": "{}"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "Done"}]},
+    ]
+    new = runner.normalize_history(old)
+    assert [m["role"] for m in new] == ["user", "assistant", "tool", "assistant"]
+    assert new[1]["tool_calls"][0]["function"]["name"] == "get_profile"
+    assert new[2]["tool_call_id"] == "x1"
 
 
 def test_monitor_review_flow(monkeypatch, db):

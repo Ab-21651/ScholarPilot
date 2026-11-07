@@ -134,12 +134,13 @@ Only include what actually happened in the chat."""
 def _transcript(conversation: Conversation, limit: int = 6000) -> str:
     lines = []
     for m in conversation.messages or []:
-        if isinstance(m["content"], str):
-            lines.append(f"{m['role'].upper()}: {m['content']}")
-            continue
-        texts = [b.get("text", "") for b in m["content"] if b.get("type") == "text" and b.get("text")]
-        if texts:
-            lines.append(f"{m['role'].upper()}: " + " ".join(texts))
+        if m.get("role") not in ("user", "assistant"):
+            continue  # tool results are already captured as events
+        content = m.get("content")
+        if isinstance(content, list):  # older block format
+            content = " ".join(b.get("text", "") for b in content if b.get("type") == "text")
+        if content:
+            lines.append(f"{m['role'].upper()}: {content}")
     text = "\n".join(lines)
     return text if len(text) <= limit else "...\n" + text[-limit:]
 

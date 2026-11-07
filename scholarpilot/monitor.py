@@ -22,12 +22,12 @@ from typing import Any
 
 import httpx
 from bs4 import BeautifulSoup
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import catalog
-from .config import settings
+from .llm import complete_json
 from .models import ChangeReview, PageSnapshot, Scholarship
 
 log = logging.getLogger(__name__)
@@ -89,30 +89,25 @@ Diff of the page text (lines starting with - were removed, + were added):
 
 Decide whether the change affects anything students rely on (deadlines, eligibility, required tests or scores, age limits, funding, documents, whether Pakistan is eligible). Ignore cosmetic or navigation changes.
 
-Write a short summary for the human reviewer. Then propose catalog changes only when the diff clearly supports them, using dotted paths that already exist in the entry, for example "tracks.master.deadline.month" or "tracks.bachelor.eligibility.english.accepted.ielts". Quote the supporting text in evidence. If nothing should change, return an empty list."""
+Write a short summary for the human reviewer. Then propose catalog changes only when the diff clearly supports them, using dotted paths that already exist in the entry, for example "tracks.master.deadline.month" or "tracks.bachelor.eligibility.english.accepted.ielts". Quote the supporting text in evidence. If nothing should change, return an empty list.
+
+Reply with only a JSON object: {{"relevant": true/false, "summary": "...", "changes": [{{"path": "...", "new_value": "...", "evidence": "..."}}]}}"""
 
 
 def analyse_change(entry: dict[str, Any], diff: str) -> ChangeAnalysis | None:
-    if not settings.anthropic_api_key:
-        return None
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     trimmed = {k: v for k, v in entry.items() if k not in {"verification_status", "last_verified"}}
+    data = complete_json(
+        "You review changes on official scholarship pages. Reply with JSON only.",
+        ANALYSIS_PROMPT.format(entry=json.dumps(trimmed), diff=diff),
+        max_tokens=3000,
+    )
+    if data is None:
+        return None
     try:
-        response = client.messages.parse(
-            model=settings.model,
-            max_tokens=4000,
-            output_config={"effort": "low"},
-            messages=[{"role": "user", "content": ANALYSIS_PROMPT.format(entry=json.dumps(trimmed, indent=1), diff=diff)}],
-            output_format=ChangeAnalysis,
-        )
-    except anthropic.APIError:
-        log.exception("Change analysis failed")
+        return ChangeAnalysis.model_validate(data)
+    except ValidationError:
+        log.warning("Change analysis returned an unexpected shape: %s", data)
         return None
-    if response.stop_reason == "refusal":
-        return None
-    return response.parsed_output
 
 
 # ---------- patching ----------
