@@ -40,18 +40,18 @@ def test_bachelor_account_sees_only_bachelor_tracks():
 
 def test_agent_loop_uses_tools_and_remembers(monkeypatch):
     script = [
-        call("t1", "update_profile", {"updates": {"ielts": 6.0, "cgpa": 3.2}}, content="Let me save that."),
-        call("t2", "check_eligibility", {"scholarship_ids": ["erasmus-mundus"]}),
-        call("t3", "draft_email", {"to_office": "Programme coordinator", "subject": "Question about IELTS", "body": "Dear coordinator, ..."}),
-        text("You need IELTS 6.5 for Erasmus Mundus. I drafted an email for your approval."),
+        call("t1", "update_profile", {"updates": {"ielts": 6.0, "cgpa": 3.2, "work_experience_months": 10}}, content="Let me save that."),
+        call("t2", "check_eligibility", {"scholarship_ids": ["chevening"]}),
+        call("t3", "draft_email", {"to_office": "Chevening Secretariat", "subject": "Question about work experience", "body": "Dear Chevening team, ..."}),
+        text("Chevening needs 2 years (2,800 hours) of work experience. I drafted an email for your approval."),
     ]
     fake = fake_client(script)
     monkeypatch.setattr(runner, "get_client", lambda: fake)
     with TestClient(app) as c:
         h = signup(c, "sara@example.com")
         cid = c.post("/api/conversations", headers=h).json()["id"]
-        r = c.post(f"/api/conversations/{cid}/messages", headers=h, json={"text": "My IELTS is 6 and CGPA 3.2. Can I get Erasmus?"}).json()
-        assert "IELTS 6.5" in r["reply"]
+        r = c.post(f"/api/conversations/{cid}/messages", headers=h, json={"text": "My IELTS is 6, CGPA 3.2 and I have 10 months of work. Can I get Chevening?"}).json()
+        assert "2,800 hours" in r["reply"]
         assert [t["tool"] for t in r["tool_calls"]] == ["update_profile", "check_eligibility", "draft_email"]
         assert '"not_eligible"' in r["tool_calls"][1]["result"]
 

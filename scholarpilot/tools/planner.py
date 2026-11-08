@@ -87,6 +87,9 @@ def build_timeline(
             warnings.append(f"Only {days_left} days left. Some steps are already late; consider the next cycle if you can't catch up.")
         if dl_info and dl_info.get("approximate"):
             warnings.append("This deadline is approximate. Confirm the exact date on the official page: " + scholarship["official_url"])
+    else:
+        note = (dl_info or {}).get("note") or ""
+        warnings.append(f"There is no single deadline: each university or course sets its own. {note}".strip())
 
     return {
         "scholarship_id": scholarship["id"],

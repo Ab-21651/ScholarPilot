@@ -172,6 +172,10 @@ def compact_scholarship(s: dict[str, Any], level: str) -> dict[str, Any]:
     track = s["tracks"].get(level)
     out = {k: s[k] for k in ("id", "name", "country", "provider", "funding", "funding_details", "official_url", "apply_url") if k in s}
     out["verification_status"] = s.get("verification_status")
+    if s.get("checked"):
+        out["checked_on"] = s["checked"]
+    if s.get("verification_status") == "retired":
+        out["retired"] = s.get("retired_reason") or "This scholarship is no longer offered."
     if track is None:
         out["note"] = f"No {level}'s track; offered for: {', '.join(s['tracks'])}"
     else:
@@ -196,6 +200,15 @@ def compact_plan(t: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+MAX_SEARCH_RESULTS = 10
+
+
+def _first_sentence(text: str, limit: int = 110) -> str:
+    """Short, exact excerpt of what an award pays, so list answers don't invent it."""
+    first = text.split(". ")[0].rstrip(".")
+    return first if len(first) <= limit else first[: limit - 3].rsplit(" ", 1)[0] + "..."
+
+
 # ---------- dispatcher ----------
 
 def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -217,18 +230,28 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
         rows = []
         for s in results:
             r = check_eligibility(s, profile, ctx.level)
+            summary = catalog.summarize(s, ctx.level)
+            deadline, status = summary.get("typical_deadline"), summary.get("deadline_status")
             row = {
                 "id": s["id"], "name": s["name"], "country": s["country"], "funding": s["funding"],
-                "deadline": catalog.summarize(s, ctx.level).get("typical_deadline"), "verdict": r.verdict,
-                "url": s["official_url"],
+                "deadline": f"{deadline} ({status})" if status and status != "varies" else deadline,
+                "covers": _first_sentence(s.get("funding_details", "")),
+                "verdict": r.verdict, "url": s["official_url"],
             }
             issues = [c.detail for c in r.criteria if c.status != "pass"]
             if issues:
-                row["issues"] = issues[:2]
+                row["issues"] = [i if len(i) <= 90 else i[:87] + "..." for i in issues[:2]]
             rows.append(row)
         order = {"eligible": 0, "likely_eligible": 1, "not_eligible": 2}
         rows.sort(key=lambda x: order[x["verdict"]])
-        return {"count": len(rows), "results": rows}
+        out = {"count": len(rows), "results": rows[:MAX_SEARCH_RESULTS]}
+        checked = sorted(s["checked"] for s in results if s.get("checked"))
+        if checked:
+            out["checked_on"] = checked[0]
+        if len(rows) > MAX_SEARCH_RESULTS:
+            # Keeps the request inside the free-tier token budget; the model can narrow by country.
+            out["more"] = f"{len(rows) - MAX_SEARCH_RESULTS} more not shown; search again with a country to see them."
+        return out
 
     if name == "get_scholarship":
         return compact_scholarship(_lookup(db, _require_str(args, "scholarship_id")), ctx.level)

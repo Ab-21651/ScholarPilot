@@ -73,7 +73,7 @@ ROUTES: dict[str, re.Pattern[str]] = {
     ),
     "scholarships": re.compile(
         r"scholarship|options?|which|list|countr|germany|german|uk\b|britain|england|hungar|ital|japan|australia|erasmus|daad|"
-        r"chevening|commonwealth|mext|adb|dsu|maeci|stipend|fund|details|documents?|deadline|requirement|official|link",
+        r"chevening|commonwealth|rhodes|great scholar|mext|monbukagakusho|adb|jds|dsu|maeci|padua|padova|polimi|politecnico|foscari|monash|helmut|epos|stipend|fund|details|documents?|deadline|requirement|official|link",
         re.I,
     ),
     "planning": re.compile(r"eligib|qualif|missing|gap|need|timeline|plan|schedule|deadline|chance|can i|am i|what do i|steps?", re.I),

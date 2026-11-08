@@ -16,20 +16,50 @@ from .models import Scholarship
 LEVELS = ("bachelor", "master")
 
 
-def load_seed_file() -> list[dict[str, Any]]:
+RETIRED = "retired"
+
+
+def _load() -> dict[str, Any]:
     with open(settings.catalog_path, encoding="utf-8") as f:
-        return json.load(f)["scholarships"]
+        return json.load(f)
+
+
+def load_seed_file() -> list[dict[str, Any]]:
+    return _load()["scholarships"]
+
+
+def retired_entries() -> list[dict[str, Any]]:
+    return _load().get("_meta", {}).get("retired", [])
 
 
 def seed_catalog(db: Session) -> int:
-    """Insert seed entries that are not in the database yet. Returns how many were added."""
-    existing = set(db.scalars(select(Scholarship.id)))
-    added = 0
+    """Sync the seed file into the database. Returns how many entries were added or refreshed.
+
+    - New entries are inserted. Entries with a `checked` date start as verified.
+    - An existing row is refreshed when the seed was checked more recently than the row
+      (so re-verified data reaches databases created earlier). Rows a reviewer verified
+      later than the seed are left alone.
+    - Scholarships listed under `_meta.retired` are marked retired and hidden from search.
+    """
+    rows = {r.id: r for r in db.scalars(select(Scholarship))}
+    changed = 0
     for entry in load_seed_file():
-        if entry["id"] not in existing:
-            db.add(Scholarship(id=entry["id"], data=entry, verification_status="needs_review"))
-            added += 1
-    return added
+        checked = entry.get("checked")
+        status = "verified" if checked else "needs_review"
+        row = rows.get(entry["id"])
+        if row is None:
+            db.add(Scholarship(id=entry["id"], data=entry, verification_status=status, last_verified=checked))
+            changed += 1
+        elif checked and (row.last_verified is None or checked > row.last_verified):
+            row.data, row.verification_status, row.last_verified = entry, status, checked
+            changed += 1
+    for old in retired_entries():
+        row = rows.get(old["id"])
+        if row is not None and row.verification_status != RETIRED:
+            row.verification_status = RETIRED
+            row.data = {**row.data, "retired_reason": old.get("reason"), "retired_source": old.get("source")}
+            changed += 1
+    return changed
 
 
 def _with_status(row: Scholarship) -> dict[str, Any]:
@@ -40,7 +70,8 @@ def _with_status(row: Scholarship) -> dict[str, Any]:
 
 
 def all_scholarships(db: Session) -> list[dict[str, Any]]:
-    return [_with_status(r) for r in db.scalars(select(Scholarship).order_by(Scholarship.id))]
+    rows = db.scalars(select(Scholarship).where(Scholarship.verification_status != RETIRED).order_by(Scholarship.id))
+    return [_with_status(r) for r in rows]
 
 
 def get_scholarship(db: Session, scholarship_id: str) -> dict[str, Any] | None:
@@ -90,12 +121,16 @@ def summarize(s: dict[str, Any], level: str | None = None) -> dict[str, Any]:
     if level and level in s["tracks"]:
         dl = s["tracks"][level].get("deadline", {})
         out["typical_deadline"] = _deadline_text(dl)
+        if dl.get("status"):
+            out["deadline_status"] = dl["status"]
     return out
 
 
 def _deadline_text(dl: dict[str, Any]) -> str:
     if not dl:
         return "unknown"
+    if not dl.get("month") or not dl.get("day"):
+        return "varies by course"
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     text = f"{dl['day']} {months[dl['month'] - 1]}"
     return f"around {text}" if dl.get("approximate") else text

@@ -31,7 +31,7 @@ Design choices:
 
 - **The LLM never decides eligibility.** A deterministic rules engine ([scholarpilot/tools/eligibility.py](scholarpilot/tools/eligibility.py)) marks every rule pass, fail or unknown, and the agent explains the result. This makes verdicts testable and stops the model from inventing criteria.
 - **Human in the loop twice.** Emails are only drafted; the student approves them in the Drafts tab. Catalog changes found by the monitor are only applied after a reviewer approves them.
-- **Grounded answers.** All scholarship facts come from the catalog, which links to official pages only. Entries stay `needs_review` until a reviewer verifies them.
+- **Grounded answers.** All scholarship facts come from the catalog: 21 scholarships checked line by line against official pages (see [docs/catalog.md](docs/catalog.md)). Each entry lists its sources and the date it was checked.
 - **Verified process guides (tree RAG).** 20 guides written from official sources (passport, FRC, HEC/IBCC/MOFA attestation, apostille, English tests, proof of funds, visas for all 6 countries). The agent browses them like a table of contents, with keyword search as a fallback, and a self-check removes claims the guide text doesn't support. See [docs/rag.md](docs/rag.md).
 - **Tool hierarchy.** Tools are grouped (student, scholarships, planning, outreach, safety). A router loads only the groups a message needs, and the model can open others with `open_tools`. See [docs/tools.md](docs/tools.md).
 - **Fits a free tier.** A rolling chat summary, compact tool outputs and a per-minute token budget keep requests small. See [docs/token-efficiency.md](docs/token-efficiency.md).
@@ -51,7 +51,7 @@ scholarpilot/
   main.py         FastAPI app (REST API and frontend)
   models.py       database tables
 data/
-  scholarships.json   seed catalog (15 scholarships, 6 countries + Erasmus Mundus)
+  scholarships.json   catalog (21 verified scholarships, 6 countries + Erasmus Mundus)
 web/              frontend (HTML/CSS/JS)
 tests/            unit and end-to-end tests
 ```
@@ -100,7 +100,7 @@ The tests cover the catalog schema, the eligibility rules, the timeline, the sca
 
 ## Catalog status
 
-The seed catalog is a first draft of each scholarship's rules, documents and typical deadlines, with links to the official pages. It has not yet been checked line by line against those pages, and rules and dates change every year, so every entry starts as `needs_review` and the app tells students to confirm on the official page. Use the monitor and the Review tab, or `POST /api/admin/scholarships/{id}/verify`, to mark entries verified after checking them.
+21 scholarships (7 with a bachelor's track, 19 with a master's track), all checked against their official pages and documents on 2026-11-08. Each entry records its `sources` and `checked` date and the status of the current cycle (open, upcoming, closed or set by each course). Destination Australia was removed because the Australian Government ended it in 2024. Amounts and dates change every year, so the app always gives the official link. The daily monitor and the Review tab keep entries current; see [docs/catalog.md](docs/catalog.md).
 
 ## Roadmap
 

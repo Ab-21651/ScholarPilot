@@ -57,8 +57,9 @@ def _age_on(dob: date, on: date) -> int:
 
 
 def next_deadline(deadline: dict[str, Any] | None, today: date | None = None) -> date | None:
-    """Next occurrence of a yearly deadline on or after today."""
-    if not deadline:
+    """Next occurrence of a yearly deadline on or after today. None when each university
+    or course sets its own date (no month/day in the catalog)."""
+    if not deadline or not deadline.get("month") or not deadline.get("day"):
         return None
     today = today or date.today()
     d = date(today.year, deadline["month"], deadline["day"])
@@ -187,7 +188,16 @@ def check_eligibility(
 
     # English
     english = rules.get("english") or {}
-    if english.get("required"):
+    if english.get("required") and not english.get("accepted"):
+        # Proof is needed, but each university or course sets the score.
+        have = [f"{label} {_profile_get(profile, k)}" for k, label in ENGLISH_TESTS.items() if _profile_get(profile, k) is not None]
+        detail = "Proof of English is required; the score is set by the university or course."
+        if have:
+            detail += f" Check that your {have[0]} meets your course's requirement."
+        c.append(Criterion("English", "unknown", detail, fixable=not have))
+        if english.get("note"):
+            result.manual_checks.append(english["note"])
+    elif english.get("required"):
         accepted: dict[str, float] = english.get("accepted", {})
         scores = {k: _profile_get(profile, k) for k in accepted}
         have = {k: v for k, v in scores.items() if v is not None}

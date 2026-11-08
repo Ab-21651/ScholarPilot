@@ -21,7 +21,7 @@ RISKY_TLDS = {"xyz", "top", "click", "buzz", "online", "site", "info", "live", "
 FREE_MAIL = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", "aol.com", "proton.me", "protonmail.com"}
 # Well-known official domains beyond the catalog
 EXTRA_OFFICIAL = {"hec.gov.pk", "ibcc.edu.pk", "gov.uk", "britishcouncil.org", "studyinjapan.go.jp", "fulbright.org", "usefpakistan.org"}
-BRAND_WORDS = {"chevening", "daad", "erasmus", "mundus", "mext", "hungaricum", "commonwealth", "fulbright", "australiaawards", "monbukagakusho", "deutschlandstipendium"}
+BRAND_WORDS = {"chevening", "daad", "erasmus", "mundus", "mext", "hungaricum", "commonwealth", "fulbright", "australiaawards", "monbukagakusho", "deutschlandstipendium", "rhodes", "jdsscholarship", "australiaawardspakistan"}
 
 PATTERNS: list[tuple[str, int, str, list[str]]] = [
     (
