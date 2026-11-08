@@ -22,7 +22,10 @@ class FakeCompletions:
 
     def create(self, **kwargs):
         self.calls.append(copy.deepcopy(kwargs))  # snapshot: the runner keeps appending to the same list
-        content, tool_calls, finish = self.script.pop(0)
+        step = self.script.pop(0)
+        if isinstance(step, Exception):
+            raise step
+        content, tool_calls, finish = step
         calls = [
             SimpleNamespace(id=i, type="function", function=SimpleNamespace(name=n, arguments=a if isinstance(a, str) else json.dumps(a)))
             for i, n, a in tool_calls

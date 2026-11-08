@@ -37,6 +37,24 @@ Design choices:
 - **Fits a free tier.** A rolling chat summary, compact tool outputs and a per-minute token budget keep requests small. See [docs/token-efficiency.md](docs/token-efficiency.md).
 - **Four kinds of memory.** Working (the chat), semantic (profile and catalog), episodic (summaries of past chats plus the application tracker), and procedural (prompt and tools). See [docs/memory.md](docs/memory.md).
 
+## Web app
+
+A light, responsive interface built with plain HTML, CSS and JavaScript (no framework or build step).
+
+- **Sign in / sign up:** a split screen with live catalog facts (number of scholarships and the next real deadline), form validation and a show-password button. Students pick Bachelor's or Master's and their role.
+- **Dashboard:** real counts (matches, eligible, applications in progress, drafts waiting), upcoming deadlines, next actions and profile strength.
+- **Assistant:** chat history, suggested questions, a thinking indicator, Markdown with tables, and a copy button. The backend does not stream: each answer is fact-checked before it is shown.
+- **Matches:** search, filters (country, open/closed, funding, verdict), sorting, expandable reasons, Track, and Build plan for the selected scholarships.
+- **Plan:** a dated timeline with tick-off tasks and document checklists. Ticks are saved in the browser only.
+- **Tracker:** status, next action with a due date, notes and history.
+- **Drafts:** an email-style list and editor; nothing is sent until you approve.
+- **Scam check:** a risk gauge plus a card for each warning sign.
+- **Profile:** fields in groups, checked before saving.
+- **Review (admins only):** before/after changes found on official pages.
+- Works on phones: slide-out menu, stacked cards, and no sideways scrolling.
+
+Images are in `web/assets/images` (resized for the web).
+
 ## Project layout
 
 ```
@@ -52,7 +70,7 @@ scholarpilot/
   models.py       database tables
 data/
   scholarships.json   catalog (21 verified scholarships, 6 countries + Erasmus Mundus)
-web/              frontend (HTML/CSS/JS)
+web/              frontend (plain HTML/CSS/JS, no build step): index.html, styles.css, app.js, icons.js, assets/
 tests/            unit and end-to-end tests
 ```
 

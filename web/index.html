@@ -4,150 +4,314 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ScholarPilot</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="description" content="ScholarPilot helps Pakistani students find funded bachelor's and master's scholarships abroad, check eligibility and plan applications from official sources.">
+  <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=7">
 </head>
 <body>
-  <!-- Auth -->
-  <section id="auth-view" class="auth hidden">
-    <div class="auth-card">
-      <div class="brand"><span class="logo">SP</span> ScholarPilot</div>
-      <p class="tagline">Your guide to funded scholarships abroad, from official sources only.</p>
-      <div class="tabs">
-        <button class="tab active" data-auth="login">Log in</button>
-        <button class="tab" data-auth="signup">Sign up</button>
+  <!-- ================= AUTH ================= -->
+  <section id="auth-view" class="auth hidden" aria-label="Sign in">
+    <div class="auth-hero">
+      <img src="/static/assets/images/auth-hero.jpg" alt="Students studying together on a university lawn" class="auth-hero-img">
+      <div class="auth-hero-overlay"></div>
+      <div class="auth-hero-content">
+        <a class="brand brand-light" href="/"><img src="/static/assets/logo.svg" alt="" width="36" height="36"><span>ScholarPilot</span></a>
+        <div class="auth-copy">
+          <span class="eyebrow">For Pakistani students · Bachelor's &amp; Master's</span>
+          <h1>Your journey to global education starts here.</h1>
+          <p>Find funded scholarships in Germany, the UK, Hungary, Italy, Japan, Australia and Erasmus Mundus. See exactly why you qualify, plan every deadline, and stay safe from scams, using official sources only.</p>
+          <ul class="auth-points">
+            <li><span data-icon="shield"></span>Facts checked against official pages</li>
+            <li><span data-icon="check"></span>Eligibility explained rule by rule</li>
+            <li><span data-icon="calendar"></span>Timelines worked back from deadlines</li>
+          </ul>
+        </div>
+        <div class="float-cards" id="auth-stats" aria-live="polite"></div>
       </div>
+    </div>
 
-      <form id="login-form" class="stack">
-        <label>Email <input name="email" type="email" required autocomplete="email"></label>
-        <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
-        <button class="primary" type="submit">Log in</button>
-      </form>
+    <div class="auth-side">
+      <div class="auth-card glass">
+        <a class="brand auth-brand-mobile" href="/"><img src="/static/assets/logo.svg" alt="" width="32" height="32"><span>ScholarPilot</span></a>
+        <h2 id="auth-title">Welcome back</h2>
+        <p class="muted" id="auth-sub">Log in to continue your scholarship plan.</p>
+        <div class="seg" role="tablist" aria-label="Log in or sign up">
+          <button class="seg-btn active" role="tab" aria-selected="true" data-auth="login">Log in</button>
+          <button class="seg-btn" role="tab" aria-selected="false" data-auth="signup">Sign up</button>
+          <span class="seg-indicator"></span>
+        </div>
 
-      <form id="signup-form" class="stack hidden">
-        <label>Full name <input name="full_name" required></label>
-        <label>Email <input name="email" type="email" required autocomplete="email"></label>
-        <label>Password (8+ characters) <input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
-        <fieldset class="level-choice">
-          <legend>I'm looking for scholarships for</legend>
-          <label class="level-card"><input type="radio" name="target_level" value="bachelor" required>
-            <strong>Bachelor's</strong><span>Finishing or finished FSc / A-Levels</span></label>
-          <label class="level-card"><input type="radio" name="target_level" value="master">
-            <strong>Master's</strong><span>Completed or completing a bachelor's degree</span></label>
-        </fieldset>
-        <label>I am a
-          <select name="role">
-            <option value="student">Student</option>
-            <option value="parent">Parent</option>
-            <option value="counsellor">Counsellor</option>
-          </select>
-        </label>
-        <button class="primary" type="submit">Create account</button>
-      </form>
-      <p id="auth-error" class="error"></p>
+        <form id="login-form" class="stack form-anim" novalidate>
+          <div class="field">
+            <label for="login-email">Email</label>
+            <div class="input-wrap"><span data-icon="mail"></span><input id="login-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com"></div>
+            <small class="field-error"></small>
+          </div>
+          <div class="field">
+            <label for="login-password">Password</label>
+            <div class="input-wrap"><span data-icon="lock"></span><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password">
+              <button type="button" class="pw-toggle" aria-label="Show password" data-icon="eye"></button></div>
+            <small class="field-error"></small>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit"><span class="btn-label">Log in</span></button>
+        </form>
+
+        <form id="signup-form" class="stack form-anim hidden" novalidate>
+          <div class="field">
+            <label for="su-name">Full name</label>
+            <div class="input-wrap"><span data-icon="user"></span><input id="su-name" name="full_name" required minlength="2" maxlength="120" autocomplete="name" placeholder="e.g. Ayesha Khan"></div>
+            <small class="field-error"></small>
+          </div>
+          <div class="field">
+            <label for="su-email">Email</label>
+            <div class="input-wrap"><span data-icon="mail"></span><input id="su-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com"></div>
+            <small class="field-error"></small>
+          </div>
+          <div class="field">
+            <label for="su-password">Password</label>
+            <div class="input-wrap"><span data-icon="lock"></span><input id="su-password" name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="At least 8 characters">
+              <button type="button" class="pw-toggle" aria-label="Show password" data-icon="eye"></button></div>
+            <div class="pw-meter" aria-hidden="true"><span></span></div>
+            <small class="field-error"></small>
+          </div>
+          <fieldset class="field">
+            <legend>I'm applying for</legend>
+            <div class="choice-grid two">
+              <label class="choice"><input type="radio" name="target_level" value="bachelor" required>
+                <span class="choice-body"><span class="choice-icon" data-icon="school"></span><strong>Bachelor's</strong><small>After Intermediate / A-Levels</small></span></label>
+              <label class="choice"><input type="radio" name="target_level" value="master">
+                <span class="choice-body"><span class="choice-icon" data-icon="cap"></span><strong>Master's</strong><small>After a bachelor's degree</small></span></label>
+            </div>
+            <small class="field-error"></small>
+          </fieldset>
+          <fieldset class="field">
+            <legend>I am a</legend>
+            <div class="choice-grid three">
+              <label class="choice compact"><input type="radio" name="role" value="student" checked><span class="choice-body"><span class="choice-icon" data-icon="user"></span><strong>Student</strong></span></label>
+              <label class="choice compact"><input type="radio" name="role" value="parent"><span class="choice-body"><span class="choice-icon" data-icon="users"></span><strong>Parent</strong></span></label>
+              <label class="choice compact"><input type="radio" name="role" value="counsellor"><span class="choice-body"><span class="choice-icon" data-icon="compass"></span><strong>Counsellor</strong></span></label>
+            </div>
+          </fieldset>
+          <button class="btn btn-primary btn-block" type="submit"><span class="btn-label">Create account</span></button>
+        </form>
+        <div id="auth-error" class="alert alert-error hidden" role="alert"></div>
+        <p class="auth-foot"><span data-icon="shield"></span>We never ask for passwords to other sites, OTPs or bank details.</p>
+      </div>
     </div>
   </section>
 
-  <!-- App -->
+  <!-- ================= APP ================= -->
   <div id="app-view" class="app hidden">
-    <header class="topbar">
-      <div class="brand"><span class="logo">SP</span> ScholarPilot</div>
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="sidebar-head">
+        <a class="brand" href="#dashboard"><img src="/static/assets/logo.svg" alt="" width="32" height="32"><span>ScholarPilot</span></a>
+        <button class="icon-btn sidebar-close" id="sidebar-close" aria-label="Close menu" data-icon="x"></button>
+      </div>
       <nav id="nav">
-        <button data-view="chat" class="active">Chat</button>
-        <button data-view="matches">Matches</button>
-        <button data-view="plan">Plan</button>
-        <button data-view="tracker">Tracker</button>
-        <button data-view="drafts">Drafts <span id="draft-count" class="badge hidden"></span></button>
-        <button data-view="scam">Scam check</button>
-        <button data-view="profile">Profile</button>
-        <button data-view="review" id="nav-review" class="hidden">Review</button>
+        <div class="nav-group">
+          <button data-view="dashboard"><span data-icon="home"></span>Dashboard</button>
+          <button data-view="chat"><span data-icon="sparkle"></span>Assistant</button>
+        </div>
+        <div class="nav-group"><span class="nav-label">Scholarships</span>
+          <button data-view="matches"><span data-icon="search"></span>Matches</button>
+          <button data-view="plan"><span data-icon="calendar"></span>Plan</button>
+          <button data-view="tracker"><span data-icon="list"></span>Tracker</button>
+        </div>
+        <div class="nav-group"><span class="nav-label">Tools</span>
+          <button data-view="drafts"><span data-icon="mail"></span>Drafts <span id="draft-count" class="count hidden"></span></button>
+          <button data-view="scam"><span data-icon="shield"></span>Scam check</button>
+        </div>
+        <div class="nav-group"><span class="nav-label">Account</span>
+          <button data-view="profile"><span data-icon="user"></span>Profile</button>
+          <button data-view="review" id="nav-review" class="hidden"><span data-icon="clipboard"></span>Review <span class="tag-admin">Admin</span></button>
+        </div>
       </nav>
-      <div class="who"><span id="who-name"></span> <span id="who-level" class="pill"></span>
-        <button id="logout" class="link">Log out</button></div>
-    </header>
+      <div class="sidebar-foot">
+        <div class="note"><span data-icon="info"></span>Always confirm dates on the official page before you apply.</div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
 
-    <main>
-      <!-- Chat -->
-      <section data-panel="chat" class="panel chat-panel">
-        <aside class="convos">
-          <button id="new-chat" class="primary small">+ New chat</button>
-          <ul id="convo-list"></ul>
-        </aside>
-        <div class="chat">
-          <div id="messages" class="messages"></div>
-          <div id="suggestions" class="suggestions"></div>
-          <form id="chat-form" class="chat-form">
-            <textarea id="chat-input" rows="2" placeholder="Ask about scholarships, paste a link to check, or tell me about yourself..." required></textarea>
-            <button class="primary" type="submit" id="send-btn">Send</button>
-          </form>
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu" data-icon="menu"></button>
+        <div class="topbar-title"><h1 id="page-title">Dashboard</h1><p id="page-sub" class="muted"></p></div>
+        <div class="user-menu">
+          <button class="user-btn" id="user-btn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">
+            <span class="avatar" id="avatar"></span>
+            <span class="user-meta"><strong id="who-name"></strong><small id="who-level"></small></span>
+            <span data-icon="chevron-down" class="chev"></span>
+          </button>
+          <div class="dropdown hidden" id="user-dropdown" role="menu">
+            <button role="menuitem" data-go="profile"><span data-icon="user"></span>My profile</button>
+            <button role="menuitem" data-go="tracker"><span data-icon="list"></span>My applications</button>
+            <hr>
+            <button role="menuitem" id="logout"><span data-icon="logout"></span>Log out</button>
+          </div>
         </div>
-      </section>
+      </header>
 
-      <!-- Matches -->
-      <section data-panel="matches" class="panel hidden">
-        <div class="panel-head">
-          <h2>Your matches</h2>
-          <p class="muted">Checked by the eligibility engine against your profile. Keep your profile complete for better results.</p>
-        </div>
-        <div id="matches-list" class="cards"></div>
-        <div class="sticky-actions"><button id="plan-selected" class="primary" disabled>Build plan for selected</button></div>
-      </section>
+      <main id="content">
+        <!-- Dashboard -->
+        <section data-panel="dashboard" class="panel">
+          <div class="welcome">
+            <img src="/static/assets/images/dashboard-welcome.jpg" alt="" class="welcome-img">
+            <div class="welcome-text">
+              <span class="eyebrow" id="welcome-level"></span>
+              <h2 id="welcome-title">Assalam-o-Alaikum!</h2>
+              <p>Here's where your scholarship plan stands today.</p>
+              <div class="welcome-actions">
+                <button class="btn btn-primary" data-go="chat"><span data-icon="sparkle"></span>Ask the assistant</button>
+                <button class="btn btn-glass" data-go="matches"><span data-icon="search"></span>See my matches</button>
+              </div>
+            </div>
+          </div>
+          <div class="stat-grid" id="stat-grid"></div>
+          <div class="dash-grid">
+            <article class="card">
+              <div class="card-title"><h3><span data-icon="clock"></span>Upcoming deadlines</h3><button class="link-btn" data-go="matches">All matches</button></div>
+              <div id="dash-deadlines"></div>
+            </article>
+            <article class="card">
+              <div class="card-title"><h3><span data-icon="flag"></span>Your next actions</h3><button class="link-btn" data-go="tracker">Tracker</button></div>
+              <div id="dash-actions"></div>
+            </article>
+            <article class="card">
+              <div class="card-title"><h3><span data-icon="user"></span>Profile strength</h3><button class="link-btn" data-go="profile">Edit profile</button></div>
+              <div id="dash-profile"></div>
+            </article>
+          </div>
+        </section>
 
-      <!-- Plan -->
-      <section data-panel="plan" class="panel hidden">
-        <div class="panel-head"><h2>Application plan</h2>
-          <p class="muted">Pick scholarships on the Matches tab, then build a plan.</p></div>
-        <div id="plan-output"></div>
-      </section>
+        <!-- Chat -->
+        <section data-panel="chat" class="panel hidden">
+          <div class="chat-layout">
+            <aside class="chat-history" id="chat-history">
+              <button id="new-chat" class="btn btn-primary btn-block"><span data-icon="plus"></span>New chat</button>
+              <p class="nav-label">Recent chats</p>
+              <ul id="convo-list" class="convo-list"></ul>
+            </aside>
+            <div class="chat-main">
+              <div class="chat-top">
+                <button class="btn btn-ghost btn-sm" id="history-toggle"><span data-icon="list"></span>Chats</button>
+                <span class="chip chip-soft"><span data-icon="shield"></span>Answers use official sources only</span>
+              </div>
+              <div id="messages" class="messages" aria-live="polite"></div>
+              <form id="chat-form" class="composer">
+                <textarea id="chat-input" rows="1" placeholder="Ask about scholarships, deadlines or documents…" aria-label="Message" required></textarea>
+                <button class="btn btn-primary send-btn" type="submit" id="send-btn" aria-label="Send"><span data-icon="send"></span></button>
+              </form>
+              <p class="composer-hint">Enter to send · Shift+Enter for a new line · The assistant can make mistakes: check the official link.</p>
+            </div>
+          </div>
+        </section>
 
-      <!-- Tracker -->
-      <section data-panel="tracker" class="panel hidden">
-        <div class="panel-head"><h2>Application tracker</h2>
-          <p class="muted">Scholarships you're pursuing. The assistant also updates this when you tell it you applied or heard back.</p></div>
-        <div id="tracker-list"></div>
-      </section>
+        <!-- Matches -->
+        <section data-panel="matches" class="panel hidden">
+          <div class="toolbar">
+            <div class="search"><span data-icon="search"></span><input id="m-search" type="search" placeholder="Search by name, country or provider" aria-label="Search scholarships"></div>
+            <select id="m-country" aria-label="Country"><option value="">All countries</option></select>
+            <select id="m-status" aria-label="Application status">
+              <option value="">Any status</option><option value="open">Open now</option><option value="upcoming">Opening soon</option>
+              <option value="closed">Closed</option><option value="varies">Set by each course</option>
+            </select>
+            <select id="m-funding" aria-label="Funding"><option value="">Any funding</option><option value="full">Fully funded</option><option value="partial">Partial</option></select>
+            <select id="m-sort" aria-label="Sort">
+              <option value="match">Sort: best match</option><option value="deadline">Sort: deadline</option><option value="name">Sort: name</option>
+            </select>
+          </div>
+          <div class="chip-row" id="m-verdicts" role="group" aria-label="Filter by verdict"></div>
+          <div id="matches-list" class="card-grid"></div>
+          <div class="action-bar hidden" id="action-bar">
+            <span id="selected-count"></span>
+            <button class="btn btn-ghost btn-sm" id="clear-selected">Clear</button>
+            <button class="btn btn-primary" id="plan-selected"><span data-icon="calendar"></span>Build plan<span class="hide-sm">&nbsp;for selected</span></button>
+          </div>
+        </section>
 
-      <!-- Drafts -->
-      <section data-panel="drafts" class="panel hidden">
-        <div class="panel-head"><h2>Email drafts</h2>
-          <p class="muted">Emails the assistant wrote for you. Nothing is sent until you approve it.</p></div>
-        <div id="drafts-list"></div>
-      </section>
+        <!-- Plan -->
+        <section data-panel="plan" class="panel hidden">
+          <div id="plan-output"></div>
+        </section>
 
-      <!-- Scam -->
-      <section data-panel="scam" class="panel hidden">
-        <div class="panel-head"><h2>Scam check</h2>
-          <p class="muted">Paste a link, ad or WhatsApp message about a scholarship.</p></div>
-        <form id="scam-form" class="stack">
-          <textarea id="scam-input" rows="6" required placeholder="e.g. Congratulations! You are selected for a fully funded scholarship. Pay Rs 5000 processing fee on JazzCash within 24 hours..."></textarea>
-          <button class="primary" type="submit">Check</button>
-        </form>
-        <div id="scam-output"></div>
-      </section>
+        <!-- Tracker -->
+        <section data-panel="tracker" class="panel hidden">
+          <div class="chip-row" id="t-filters"></div>
+          <div id="tracker-list" class="stack-lg"></div>
+        </section>
 
-      <!-- Profile -->
-      <section data-panel="profile" class="panel hidden">
-        <div class="panel-head"><h2>Your profile</h2>
-          <p class="muted">The assistant remembers this. You can also just tell it in chat.</p></div>
-        <form id="profile-form" class="profile-grid"></form>
-        <div id="profile-notes"></div>
-        <div class="memory-head">
-          <h3>Past sessions</h3>
-          <button id="refresh-memory" class="small">Update summaries</button>
-        </div>
-        <div id="episodes-list"></div>
-      </section>
+        <!-- Drafts -->
+        <section data-panel="drafts" class="panel hidden">
+          <div class="mail-layout">
+            <div class="mail-list card" id="drafts-list"></div>
+            <div class="mail-view card" id="draft-view"></div>
+          </div>
+        </section>
 
-      <!-- Review -->
-      <section data-panel="review" class="panel hidden">
-        <div class="panel-head"><h2>Catalog review</h2>
-          <p class="muted">Changes detected on official pages. The catalog only updates when you approve.</p>
-          <button id="run-monitor" class="small">Run monitor now</button></div>
-        <div id="review-list"></div>
-      </section>
-    </main>
+        <!-- Scam check -->
+        <section data-panel="scam" class="panel hidden">
+          <div class="scam-layout">
+            <form id="scam-form" class="card scam-input">
+              <h3><span data-icon="shield"></span>Paste a message or link</h3>
+              <p class="muted">WhatsApp forwards, emails, Facebook posts or a website link. We check them for common scam signs.</p>
+              <textarea id="scam-input" rows="9" required placeholder="e.g. Congratulations! You are selected for a fully funded scholarship. Pay Rs 5,000 processing fee to confirm..."></textarea>
+              <div class="row-between">
+                <button type="button" class="btn btn-ghost btn-sm" id="scam-paste"><span data-icon="clipboard"></span>Paste</button>
+                <div class="row"><button type="button" class="btn btn-ghost btn-sm" id="scam-clear">Clear</button>
+                  <button class="btn btn-primary" type="submit"><span class="btn-label">Analyse</span></button></div>
+              </div>
+            </form>
+            <div id="scam-output" class="scam-output"></div>
+          </div>
+        </section>
+
+        <!-- Profile -->
+        <section data-panel="profile" class="panel hidden">
+          <div class="profile-layout">
+            <form id="profile-form" class="profile-form" novalidate></form>
+            <aside class="profile-side">
+              <article class="card"><div class="card-title"><h3><span data-icon="chart"></span>Profile strength</h3></div><div id="profile-strength"></div></article>
+              <article class="card"><div class="card-title"><h3><span data-icon="sparkle"></span>What the assistant remembers</h3></div><div id="profile-notes"></div></article>
+              <article class="card"><div class="card-title"><h3><span data-icon="clock"></span>Past sessions</h3>
+                <button id="refresh-memory" class="btn btn-ghost btn-sm"><span class="btn-label">Update</span></button></div>
+                <div id="episodes-list"></div></article>
+            </aside>
+          </div>
+        </section>
+
+        <!-- Review (admin) -->
+        <section data-panel="review" class="panel hidden">
+          <div class="toolbar">
+            <div class="seg seg-sm" id="r-tabs" role="tablist">
+              <button class="seg-btn active" data-status="pending">Pending</button>
+              <button class="seg-btn" data-status="approved">Approved</button>
+              <button class="seg-btn" data-status="rejected">Rejected</button>
+              <span class="seg-indicator"></span>
+            </div>
+            <span class="spacer"></span>
+            <button id="run-monitor" class="btn btn-primary"><span class="btn-label">Run monitor now</span></button>
+          </div>
+          <div id="review-list" class="stack-lg"></div>
+        </section>
+      </main>
+    </div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
-  <script src="/static/app.js"></script>
+  <!-- Modal + toasts -->
+  <div class="modal-backdrop hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <div class="modal-icon" id="modal-icon"></div>
+      <h3 id="modal-title"></h3>
+      <p id="modal-text" class="muted"></p>
+      <div class="modal-actions"><button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-ok">Confirm</button></div>
+    </div>
+  </div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="/static/icons.js?v=7"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

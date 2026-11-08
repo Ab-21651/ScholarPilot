@@ -111,7 +111,9 @@ def _call_with_retry(client: openai.OpenAI, messages: list[dict[str, Any]], tool
         try:
             return chat(client, messages, tools, max_completion_tokens=max_out)
         except openai.BadRequestError as e:
-            if "tool_use_failed" in str(e) and attempt < TOOL_FORMAT_RETRIES:
+            # Groq rejects bad tool calls with 400: "tool_use_failed" (malformed) or
+            # "Tool call validation failed" (e.g. a misspelled tool name).
+            if ("tool_use_failed" in str(e) or "tool call validation failed" in str(e).lower()) and attempt < TOOL_FORMAT_RETRIES:
                 # Usually the model called a tool from the map that isn't loaded yet:
                 # on the last retry, send every tool.
                 log.warning("Model produced a malformed or unloaded tool call; retrying (%d)", attempt + 1)

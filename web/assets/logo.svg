@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ScholarPilot">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+  <!-- paper plane -->
+  <path d="M14 31.5 49 17l-8.5 31-9.2-8.3-5.3 6.1.6-9.3L46 21.8 23.5 35.6z" fill="#fff"/>
+  <path d="m26.6 37.2-.6 9.3 5.3-6.1z" fill="#cdeee9"/>
+</svg>

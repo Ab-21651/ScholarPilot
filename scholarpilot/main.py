@@ -34,7 +34,7 @@ from .memory import (
 from .models import ChangeReview, Conversation, EmailDraft, Episode, Scholarship, User
 from .monitor import approve_review, run_monitor
 from .profiles import get_or_create_profile, profile_to_dict, update_profile
-from .tools.eligibility import check_eligibility, rank_matches
+from .tools.eligibility import check_eligibility, next_deadline, rank_matches
 from .tools.planner import build_timeline, merge_timelines
 from .tools.scam import check_message
 
@@ -191,7 +191,43 @@ def matches(user: User = Depends(current_user), db: Session = Depends(get_db)):
     items = catalog.search_scholarships(db, level=user.target_level)
     results = rank_matches([check_eligibility(s, profile, user.target_level) for s in items])
     by_id = {s["id"]: s for s in items}
-    return [{**r.to_dict(), "country": by_id[r.scholarship_id]["country"], "funding": by_id[r.scholarship_id]["funding"], "official_url": by_id[r.scholarship_id]["official_url"]} for r in results]
+    return [{**r.to_dict(), **_card_facts(by_id[r.scholarship_id], user.target_level)} for r in results]
+
+
+def _card_facts(s: dict[str, Any], level: str) -> dict[str, Any]:
+    """Catalog facts shown on a scholarship card. Missing facts stay None; the UI says so."""
+    dl = s["tracks"].get(level, {}).get("deadline") or {}
+    nxt = next_deadline(dl)
+    return {
+        "country": s["country"], "provider": s.get("provider"), "funding": s["funding"],
+        "funding_details": s.get("funding_details"), "official_url": s["official_url"], "apply_url": s.get("apply_url"),
+        "checked": s.get("checked") or s.get("last_verified"),
+        "deadline_text": catalog.summarize(s, level).get("typical_deadline"), "deadline_status": dl.get("status"),
+        "deadline_note": dl.get("note"), "deadline_approximate": bool(dl.get("approximate")),
+        "next_deadline": nxt.isoformat() if nxt else None,
+    }
+
+
+@app.get("/api/public/stats")
+def public_stats(db: Session = Depends(get_db)):
+    """Real catalog facts for the sign-in page (no login needed, no user data)."""
+    items = catalog.all_scholarships(db)
+    soon = []
+    for s in items:
+        for level, track in s["tracks"].items():
+            dl = track.get("deadline") or {}
+            nxt = next_deadline(dl)
+            if dl.get("status") in ("open", "upcoming") and nxt and not dl.get("approximate"):
+                soon.append({"name": s["name"], "country": s["country"], "level": level, "deadline": nxt.isoformat(), "status": dl["status"]})
+    soon = sorted({(x["name"], x["deadline"]): x for x in soon}.values(), key=lambda x: x["deadline"])[:3]
+    return {
+        "scholarships": len(items),
+        "destinations": len({s["country"] for s in items}),
+        "bachelor": sum("bachelor" in s["tracks"] for s in items),
+        "master": sum("master" in s["tracks"] for s in items),
+        "checked": max((s.get("checked") or "" for s in items), default=None) or None,
+        "closing_soon": soon,
+    }
 
 
 @app.post("/api/plan")
@@ -436,4 +472,5 @@ app.mount("/static", StaticFiles(directory=settings.web_dir), name="static")
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(settings.web_dir / "index.html")
+    # no-cache: browsers re-check the page, so new asset versions (?v=) load after an update
+    return FileResponse(settings.web_dir / "index.html", headers={"Cache-Control": "no-cache"})

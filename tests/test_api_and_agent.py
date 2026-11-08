@@ -28,7 +28,20 @@ def test_signup_login_and_profile():
         matches = c.get("/api/matches", headers=h).json()
         assert matches[0]["verdict"] in {"eligible", "likely_eligible"}
         assert all(m["level"] == "master" for m in matches)
+        card = next(m for m in matches if m["scholarship_id"] == "commonwealth-shared")
+        assert card["provider"] and card["funding_details"] and card["checked"] == "2026-11-08"
+        assert card["deadline_status"] == "upcoming" and card["next_deadline"].endswith("-12-08")
+        epos = next(m for m in matches if m["scholarship_id"] == "daad-epos")
+        assert epos["next_deadline"] is None and epos["deadline_status"] == "varies"
         assert c.get("/api/matches").status_code == 401
+
+
+def test_public_stats_need_no_login_and_hold_no_user_data():
+    with TestClient(app) as c:
+        r = c.get("/api/public/stats").json()
+        assert r["scholarships"] >= 20 and r["destinations"] == 7
+        assert set(r) == {"scholarships", "destinations", "bachelor", "master", "checked", "closing_soon"}
+        assert all(x["status"] in {"open", "upcoming"} for x in r["closing_soon"])
 
 
 def test_bachelor_account_sees_only_bachelor_tracks():
@@ -75,6 +88,23 @@ def test_agent_loop_uses_tools_and_remembers(monkeypatch):
         history = c.get(f"/api/conversations/{cid}", headers=h).json()["messages"]
         assert history[0]["role"] == "user" and history[-1]["role"] == "assistant"
         assert "Let me save that." in history[-1]["text"]
+
+
+def test_misspelled_tool_name_is_retried(monkeypatch):
+    import httpx
+    import openai
+
+    req = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    bad = openai.BadRequestError(
+        "Error code: 400 - Tool call validation failed: attempted to call tool 'search_scholidays' which was not in request.tools",
+        response=httpx.Response(400, request=req), body=None)
+    fake = fake_client([bad, text("Here are your options.")])
+    monkeypatch.setattr(runner, "get_client", lambda: fake)
+    with TestClient(app) as c:
+        h = signup(c, "zara@example.com")
+        cid = c.post("/api/conversations", headers=h).json()["id"]
+        r = c.post(f"/api/conversations/{cid}/messages", headers=h, json={"text": "Which scholarships fit me?"}).json()
+        assert r["reply"] == "Here are your options." and len(fake.chat.completions.calls) == 2
 
 
 def test_tool_errors_are_returned_to_model(monkeypatch):
