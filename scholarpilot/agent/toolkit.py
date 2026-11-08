@@ -45,6 +45,10 @@ GROUPS: dict[str, dict[str, Any]] = {
         "about": "check eligibility in detail and build gap lists and timelines",
         "tools": ["check_eligibility", "plan_application"],
     },
+    "guides": {
+        "about": "verified how-to guides: passport, attestation, English tests, proof of funds, visas",
+        "tools": ["browse_guides", "search_guides"],
+    },
     "outreach": {
         "about": "draft emails to offices, sent only after the student approves",
         "tools": ["draft_email"],
@@ -73,6 +77,14 @@ ROUTES: dict[str, re.Pattern[str]] = {
         re.I,
     ),
     "planning": re.compile(r"eligib|qualif|missing|gap|need|timeline|plan|schedule|deadline|chance|can i|am i|what do i|steps?", re.I),
+    "guides": re.compile(
+        r"passport|cnic|b-?form|nadra|frc|family registration|police|attest|apostil|hec\b|ibcc|mofa|equivalen|o ?levels?|a ?levels?|"
+        r"(ielts|pte|toefl|duolingo|english test)\s*\w*\s*(fee|cost|book|result|valid|cent(er|re)|online|home|accept)|english test|"
+        r"visa|residence permit|permesso|blocked account|sperrkonto|bank statement|"
+        r"proof of (funds|money)|financial|funds|living cost|tb test|tuberculosis|cas\b|coe\b|oshc|health insurance|"
+        r"translat|legali[sz]|isee|how (do|can) i (get|apply)|process|procedure",
+        re.I,
+    ),
     "outreach": re.compile(r"e-?mail|mail|write to|contact|letter|draft|message the|ask the (office|university)", re.I),
     "safety": re.compile(r"https?://|www\.|\.(com|xyz|net|org|info|top|ly)\b|scam|fake|fraud|real\?|legit|genuine|fee|pay|jazz ?cash|easy ?paisa|whatsapp|congratulations|selected|otp", re.I),
 }

@@ -17,7 +17,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import catalog
+from . import catalog, guides
 from .agent.runner import run_agent, visible_history
 from .auth import admin_user, create_token, current_user, hash_password, verify_password
 from .config import settings
@@ -256,7 +256,22 @@ def delete_conversation(cid: int, user: User = Depends(current_user), db: Sessio
 def send_message(cid: int, body: TextIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     c = _own_conversation(db, user, cid)
     reply = run_agent(db, user, c, body.text)
-    return {"reply": reply.text, "tool_calls": reply.tool_calls, "created_drafts": reply.created_drafts, "stopped_reason": reply.stopped_reason, "usage": reply.usage}
+    return {"reply": reply.text, "tool_calls": reply.tool_calls, "created_drafts": reply.created_drafts, "stopped_reason": reply.stopped_reason, "usage": reply.usage, "grounding": reply.grounding}
+
+
+# ---------- process guides (knowledge base) ----------
+
+@app.get("/api/guides")
+def guide_tree(_: User = Depends(current_user)):
+    return guides.browse()
+
+
+@app.get("/api/guides/{path:path}")
+def guide_node(path: str, _: User = Depends(current_user)):
+    try:
+        return guides.browse(path)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
 
 
 # ---------- memory: application tracker and episodes ----------

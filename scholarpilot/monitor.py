@@ -26,13 +26,15 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import catalog
+from . import catalog, guides
+from .config import ROOT_DIR
 from .llm import complete_json
 from .models import ChangeReview, PageSnapshot, Scholarship
 
 log = logging.getLogger(__name__)
 USER_AGENT = "ScholarPilotMonitor/0.1 (student project; checks official scholarship pages once a day)"
 MAX_DIFF_CHARS = 8000
+GUIDE_PREFIX = "guide:"
 
 
 # ---------- fetching ----------
@@ -176,6 +178,20 @@ def check_url(db: Session, scholarship: dict[str, Any], url: str, client: httpx.
         return "unchanged"
 
     diff = make_diff(last.text, text)
+    if sid.startswith(GUIDE_PREFIX):
+        # Guides are hand-written files: the reviewer re-checks the file, there is no automatic patch.
+        guide_file = scholarship.get("file", "")
+        review = ChangeReview(
+            scholarship_id=sid,
+            url=url,
+            diff=diff,
+            summary=f"An official source of the guide '{scholarship.get('title')}' changed. Re-check {guide_file} against this page, update it if needed, and set its 'checked' date.",
+            proposed_patch={},
+        )
+        db.add(review)
+        db.add(PageSnapshot(scholarship_id=sid, url=url, content_hash=new_hash, text=text))
+        db.flush()
+        return "changed"
     analysis = analyse_change(scholarship, diff)
     review = ChangeReview(
         scholarship_id=sid,
@@ -198,10 +214,24 @@ def run_monitor(db: Session) -> dict[str, int]:
                 result = check_url(db, s, url, client)
                 counts[result] += 1
                 db.commit()
+        all_guides = guides.load_guides()
+        for gid, url in guides.monitored_sources():
+            g = all_guides[gid]
+            entry = {"id": f"{GUIDE_PREFIX}{gid}", "title": g.title, "file": str(g.path.relative_to(ROOT_DIR)).replace("\\", "/")}
+            result = check_url(db, entry, url, client)
+            counts[result] += 1
+            db.commit()
     return counts
 
 
-def approve_review(db: Session, review: ChangeReview, reviewer_id: int, patch: dict[str, Any] | None, note: str | None) -> Scholarship:
+def approve_review(db: Session, review: ChangeReview, reviewer_id: int, patch: dict[str, Any] | None, note: str | None) -> Scholarship | None:
+    if review.scholarship_id.startswith(GUIDE_PREFIX):
+        # Guide files are edited by hand; approving just records that the change was reviewed.
+        review.status = "approved"
+        review.reviewer_id = reviewer_id
+        review.reviewer_note = note
+        review.reviewed_at = datetime.now(timezone.utc)
+        return None
     row = db.get(Scholarship, review.scholarship_id)
     if row is None:
         raise KeyError("Scholarship no longer exists")

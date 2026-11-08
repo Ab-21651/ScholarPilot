@@ -66,7 +66,7 @@ def _parse_json(text: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def complete_json(system: str, prompt: str, max_tokens: int = 1500) -> dict[str, Any] | None:
+def complete_json(system: str, prompt: str, max_tokens: int = 1500, reasoning_effort: str = "low") -> dict[str, Any] | None:
     """Ask the model for a JSON object. Returns None if no model is configured or the call fails."""
     try:
         client = get_client()
@@ -74,7 +74,7 @@ def complete_json(system: str, prompt: str, max_tokens: int = 1500) -> dict[str,
             client,
             [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             max_completion_tokens=max_tokens,
-            reasoning_effort="low",
+            reasoning_effort=reasoning_effort,
             response_format={"type": "json_object"},
         )
     except (LLMNotConfigured, openai.OpenAIError):

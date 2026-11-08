@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from .. import catalog
+from .. import catalog, guides
 from ..memory import application_to_dict, search_episodes, upsert_application
 from ..models import APPLICATION_STATUSES, EmailDraft, User
 from ..profiles import EDITABLE_FIELDS, profile_to_dict, update_profile
@@ -92,6 +92,19 @@ TOOLS: list[dict[str, Any]] = [
             "body": {"type": "string"},
             "scholarship_id": {"type": "string"},
         }, ["to_office", "subject", "body"]),
+    },
+    {
+        "name": "browse_guides",
+        "description": "Open the process-guide tree (passport, attestation, tests, proof of funds, visas). No path = list areas; then an area, a guide, or a section path to read it.",
+        "input_schema": _schema({"path": {"type": "string"}}),
+    },
+    {
+        "name": "search_guides",
+        "description": "Keyword search across all process guides when you don't know which guide holds the answer. Returns section paths to open with browse_guides.",
+        "input_schema": _schema({
+            "query": {"type": "string"},
+            "area": {"type": "string", "enum": ["identity", "education", "language", "money", "visa"]},
+        }, ["query"]),
     },
     {
         "name": "check_scam",
@@ -275,6 +288,13 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
         db.commit()
         a = application_to_dict(app, s["name"])
         return {"application": {k: a[k] for k in ("scholarship_id", "status", "next_action", "next_action_date") if a.get(k)}}
+
+    if name == "browse_guides":
+        return guides.browse(args.get("path"))
+
+    if name == "search_guides":
+        hits = guides.search(_require_str(args, "query"), area=args.get("area"))
+        return {"results": hits, **({} if hits else {"note": "No match. Browse the tree, or say the guides don't cover this."})}
 
     if name == "recall_past_sessions":
         found = search_episodes(db, user, query=args.get("query"), scholarship_id=args.get("scholarship_id"))

@@ -21,6 +21,7 @@ from ..llm import LLMNotConfigured, chat, get_client
 from ..memory import memory_context, record_tool_events, refresh_stale_episodes
 from ..models import Conversation, User
 from .context import build_messages, fit_to_budget, maybe_compact
+from .grounding import GUIDE_TOOLS, ground_answer
 from .prompts import SYSTEM_PROMPT, user_context
 from .toolkit import ALL_GROUPS, TOOL_GROUP, open_groups, route, tools_for
 from .tools import ToolContext, compact_profile, execute
@@ -36,6 +37,8 @@ class AgentReply:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     created_drafts: list[int] = field(default_factory=list)
     stopped_reason: str = "stop"
+    # Result of the grounding self-check, when the answer used the guides
+    grounding: dict[str, Any] = field(default_factory=dict)
     # Token usage for this turn, summed over every model call
     usage: dict[str, int] = field(default_factory=lambda: {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0})
 
@@ -219,6 +222,16 @@ def run_agent(
         reply.text = f"The assistant hit an error ({e.status_code}). Please try again."
         reply.stopped_reason = "error"
         return reply
+
+    # Self-check: if the answer was built from the process guides, remove any claim the
+    # retrieved guide text doesn't support before the student sees it.
+    if reply.stopped_reason == "stop" and any(name in GUIDE_TOOLS for name, _, _ in events):
+        checked_text, report = ground_answer(reply.text, [(n, r) for n, _, r in events])
+        reply.grounding = report
+        if checked_text != reply.text:
+            reply.text = checked_text
+            if history and history[-1]["role"] == "assistant" and not history[-1].get("tool_calls"):
+                history[-1] = {"role": "assistant", "content": checked_text}
 
     # The history must end with an assistant turn so the next request is valid.
     if history and history[-1]["role"] == "tool":
